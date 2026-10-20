@@ -1,0 +1,49 @@
+/* Tokens que no cambian entre el tema oscuro y claro */
+
+:root {
+
+    /* Tipografía */
+    --font-heading: "Montserrat", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+
+    /* Escala tipográfica (tamaño e interlineado) */
+    --text-h1: 32px;    --lh-h1: 40px;
+    --text-h2: 24px;    --lh-h2: 32px;
+    --text-h3: 20px;    --lh-h3: 28px;
+    --text-h4: 16px;    --lh-h4: 24px;
+    --text-p: 14px;     --lh-p: 20px;
+    --text-small: 12px; --lh-small: 18px;
+
+    /* Espaciados */
+    --space-1: 4px; 
+    --space-2: 8px;
+    --space-3: 16px;
+    --space-4: 24px;
+    --space-5: 32px;
+    --space-6: 48px;
+
+    /* Radios */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+
+    /* Transiciones */
+    --transition-fast: 0.2s;
+
+    /* Estados (son iguales en ambos temas) */
+    --color-warning: #FBBF24;
+    --color-info: #3B82F6;
+    /*--color-success: #10B981;
+    --color-error: #EF4444;*/
+
+}
+
+/* Pantallas más pequeñas, los títulos son algo más contenidos */
+
+@media (max-width: 640px) {
+    :root {
+        --text-h1: 26px;    --lh-h1: 34px;
+        --text-h2: 21px;    --lh-h2: 28px;
+    }
+}
