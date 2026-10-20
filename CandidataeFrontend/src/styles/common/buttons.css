@@ -1,0 +1,20 @@
+
+.btn-primary {
+    background-color: var(--id-color-accent) !important;
+    color: var(--id-text-inverse) !important;
+    border: 0;
+
+    &:hover {
+        background-color: var(--id-color-accent-hover) !important;
+    }
+}
+
+.btn-seccondary {
+    background-color: var(--id-color-accent) !important;
+    color: var(--id-text-inverse) !important;
+}
+
+.btn-tertiary {
+    background-color: var(--id-color-accent) !important;
+    color: var(--id-text-inverse) !important;
+}

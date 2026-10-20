@@ -1,0 +1,51 @@
+.bg-main {
+    background-color: var(--id-bg-primary) !important;
+}
+
+.bg-secondary-custom {
+    background-color: var(--id-bg-secondary) !important;
+}
+
+.bg-surface {
+    background-color: var(--id-bg-surface) !important;
+}
+
+.form-control, .input-custom {
+    background-color: var(--id-input-bg) !important;
+    color: var(--id-input-text) !important;
+    border: 1px solid var(--id-input-border) !important;
+    border-radius: var(--id-radius-sm) !important;
+    font-family: 'Inter', sans-serif;
+}
+
+.form-control::placeholder {
+    color: var(--id-input-placeholder) !important;
+}
+
+.form-control:focus {
+    background-color: var(--id-input-bg) !important;
+    color: var(--id-input-text) !important;
+    border-color: var(--id-input-border-focus) !important;
+    box-shadow: 0 0 0 0.2rem var(--id-focus-ring) !important;
+}
+
+.input-success, .form-control.is-valid {
+    border-color: var(--id-input-success-border) !important;
+}
+
+.input-error, .form-control.is-invalid {
+    border-color: var(--id-input-error-border) !important;
+}
+
+.radio-button-accent, .form-check-input:checked {
+    background-color: var(--id-color-accent) !important;
+    border-color: var(--id-color-accent) !important;
+}
+
+.card-custom, .card {
+    background-color: var(--id-bg-surface) !important;
+    border: 1px solid var(--id-border-color) !important;
+    border-radius: var(--id-radius-lg) !important;
+    color: var(--id-text-primary) !important;
+    box-shadow: var(--id-glass-shadow);
+}
