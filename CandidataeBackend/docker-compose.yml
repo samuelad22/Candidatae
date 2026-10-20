@@ -1,0 +1,21 @@
+services:
+  postgres:
+    # Imagen oficial de PostgreSQL desde Docker Hub.
+    # No hace falta compilar ni crear ningún Dockerfile: Docker la descarga automáticamente.
+    image: postgres:16-alpine
+    container_name: candidatae-postgres
+    restart: unless-stopped
+    ports:
+      # Mapea el puerto 5432 de tu máquina (localhost) al puerto 5432 del contenedor
+      - "5432:5432"
+    environment:
+      # Estas variables configuran PostgreSQL automáticamente en el primer arranque:
+      POSTGRES_DB: candidatae
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    volumes:
+      # Volumen persistente: evita que los datos se pierdan cuando apagues el contenedor
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
