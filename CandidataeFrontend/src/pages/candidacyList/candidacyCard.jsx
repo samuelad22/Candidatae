@@ -1,7 +1,4 @@
-function cardCandidatura({candidatura}){
-
-    const {puesto = "", empresa = "", estado = "", fecha = ""} = candidatura
-    
+function CandidacyCard({ puesto = "", empresa = "", estado = "", fecha = "" }) {
     return(
         <div id="cardCandidatura">
             <h3 className="tituloCardCandidatura">{puesto}</h3>
@@ -13,3 +10,5 @@ function cardCandidatura({candidatura}){
         </div>
     )
 }
+
+export default CandidacyCard
