@@ -1,0 +1,11 @@
+# ====== Entorno local ======
+# El ".env" contiene credenciales reales: nunca se sube al repositorio.
+.env
+.env.local
+
+# ====== VS Code ======
+.vscode/
+
+# ====== Sistema ======
+Thumbs.db
+.DS_Store
