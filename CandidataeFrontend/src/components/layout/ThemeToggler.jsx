@@ -19,9 +19,9 @@ export default function ThemeToggle() {
 
     return (
         <button 
-        onClick={toggleTheme} 
-        className="btn btn-outline-secondary btn-theme-toggle"
-        title="Cambiar tema"
+            onClick={toggleTheme} 
+            className="btn btn-secondary btn-theme-toggle"
+            title="Cambiar tema"
         >
         <i className={theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun'}></i>
         </button>

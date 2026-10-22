@@ -32,7 +32,7 @@
 
 @font-face {
     font-family: 'Inter';
-    src: url('../../assets/fonts/Inter/static/Inter-Regular.ttf') format('truetype');
+    src: url('../../assets/fonts/Inter/static/Inter_18pt-Regular.ttf') format('truetype');
     font-weight: 400;
     font-style: normal;
     font-display: swap;
@@ -40,7 +40,7 @@
 
 @font-face {
     font-family: 'Inter';
-    src: url('../../assets/fonts/Inter/static/Inter-Medium.ttf') format('truetype');
+    src: url('../../assets/fonts/Inter/static/Inter_24pt-Medium.ttf') format('truetype');
     font-weight: 500;
     font-style: normal;
     font-display: swap;
@@ -48,7 +48,7 @@
 
 @font-face {
     font-family: 'Inter';
-    src: url('../../assets/fonts/Inter/static/Inter-SemiBold.ttf') format('truetype');
+    src: url('../../assets/fonts/Inter/static/Inter_28pt-SemiBold.ttf') format('truetype');
     font-weight: 600;
     font-style: normal;
     font-display: swap;

@@ -49,3 +49,9 @@
     color: var(--id-text-primary) !important;
     box-shadow: var(--id-glass-shadow);
 }
+
+.login-form {
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+}

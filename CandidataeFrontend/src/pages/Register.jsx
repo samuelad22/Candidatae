@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { validateRegister } from '../utils/formValidations'
+import ThemeToggle from '../components/layout/ThemeToggler'
+import { registerUser } from '../services/authService'
 
 export default function Register() {
     const navigate = useNavigate()
@@ -11,141 +14,129 @@ export default function Register() {
         confirmPassword: '',
     })
 
+    const [errors, setErrors] = useState({})
+    const [serverError, setServerError] = useState('')
+    const [isLoading, setIsLoading] = useState(false)
+
     const handleChange = (e) => {
         const { name, value } = e.target
         setFormData((prev) => ({
-        ...prev,
-        [name]: value,
+            ...prev,
+            [name]: value,
         }))
+        if (errors[name]) {
+            setErrors((prev) => ({ ...prev, [name]: '' }))
+        }
+        if (serverError) setServerError('')
     }
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
 
-        if (formData.password !== formData.confirmPassword) {
-
+        const validationErrors = validateRegister(formData)
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors)
             return
         }
 
-        console.log('Registro enviado:', formData)
+        setIsLoading(true)
+        setServerError('')
 
-        // Redirigir al login tras un registro exitoso
-        // navigate('/login')
+        try {
+            const { confirmPassword, ...registrationData } = formData
+            await registerUser(registrationData)
+            navigate('/')
+        } catch (err) {
+            setServerError(err.message || 'Error al registrar la cuenta. Es posible que el email ya esté en uso.')
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
-        <div className="container d-flex justify-content-center align-items-center vh-100">
-            <div className="card shadow-lg p-4 rounded-3" style={{ maxWidth: '420px', width: '100%' }}>
+        <div className="container bg-main">
+            <ThemeToggle />
+            <div className="card shadow-lg rounded-3 mx-auto login-form p-4">
                 
-                <div className="text-center mb-4">
-                    <i className="fa-solid fa-user-plus fa-3x text-primary mb-2"></i>
-                    <h2 className="fw-bold">Crear Cuenta</h2>
-                    <p className="text-muted">Empieza a llevar el control de tus postulaciones</p>
+                <div className="text-start">
+                    <h2 className="fw-bold">Crear cuenta</h2>
+                    <p className="text-muted">Empieza a centralizar tus solicitudes de empleo</p>
                 </div>
 
-                <form onSubmit={handleSubmit}>
+                {serverError && (
+                    <div className="alert alert-danger py-2 small" role="alert">
+                        {serverError}
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit} noValidate>
                 
-                    <div className="mb-3">
-                        <label htmlFor="name" className="form-label fw-semibold">
-                        Nombre Completo
-                        </label>
+                    <div className="my-3">
+                        <label htmlFor="name" className="form-label fw-medium">Nombre completo</label>
                         <div className="input-group">
-                        <span className="input-group-text bg-light">
-                            <i className="fa-solid fa-user text-secondary"></i>
-                        </span>
-                        <input
-                            type="text"
-                            className="form-control"
-                            id="name"
-                            name="name"
-                            placeholder="Tu nombre"
-                            value={formData.name}
-                            onChange={handleChange}
-                            required
-                        />
+                            <input
+                                type="text"
+                                className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                                id="name" name="name" placeholder="Tu nombre" value={formData.name}
+                                onChange={handleChange}
+                            />
                         </div>
+                        {errors.name && <div className="invalid-feedback d-block">{errors.name}</div>}
                     </div>
 
-                    {/* Email */}
-                    <div className="mb-3">
-                        <label htmlFor="email" className="form-label fw-semibold">
-                        Correo Electrónico
-                        </label>
+                    <div className="my-3">
+                        <label htmlFor="email" className="form-label fw-medium">Correo Electrónico</label>
                         <div className="input-group">
-                        <span className="input-group-text bg-light">
-                            <i className="fa-solid fa-envelope text-secondary"></i>
-                        </span>
-                        <input
-                            type="email"
-                            className="form-control"
-                            id="email"
-                            name="email"
-                            placeholder="ejemplo@correo.com"
-                            value={formData.email}
-                            onChange={handleChange}
-                            required
-                        />
+                            <input
+                                type="email"
+                                className={`form-control ${errors.email ? 'is-invalid' : ''}`}
+                                id="email" name="email" placeholder="ejemplo@correo.com" value={formData.email}
+                                onChange={handleChange}
+                            />
                         </div>
+                        {errors.email && <div className="invalid-feedback d-block">{errors.email}</div>}
                     </div>
 
-                    {/* Contraseña */}
-                    <div className="mb-3">
-                        <label htmlFor="password" className="form-label fw-semibold">
-                        Contraseña
-                        </label>
+                    <div className="my-3">
+                        <label htmlFor="password" className="form-label fw-medium">Contraseña</label>
                         <div className="input-group">
-                        <span className="input-group-text bg-light">
-                            <i className="fa-solid fa-lock text-secondary"></i>
-                        </span>
-                        <input
-                            type="password"
-                            className="form-control"
-                            id="password"
-                            name="password"
-                            placeholder="••••••••"
-                            value={formData.password}
-                            onChange={handleChange}
-                            required
-                        />
+                            <input
+                                type="password" className={`form-control ${errors.password ? 'is-invalid' : ''}`} id="password" name="password" placeholder="••••••••"
+                                value={formData.password} onChange={handleChange}
+                            />
                         </div>
+                        {errors.password && <div className="invalid-feedback d-block">{errors.password}</div>}
                     </div>
 
-                    {/* Confirmar Contraseña */}
-                    <div className="mb-3">
-                        <label htmlFor="confirmPassword" className="form-label fw-semibold">
-                        Confirmar Contraseña
-                        </label>
+                    <div className="my-3">
+                        <label htmlFor="confirmPassword" className="form-label fw-medium">Confirmar contraseña</label>
                         <div className="input-group">
-                        <span className="input-group-text bg-light">
-                            <i className="fa-solid fa-shield-halved text-secondary"></i>
-                        </span>
-                        <input
-                            type="password"
-                            className="form-control"
-                            id="confirmPassword"
-                            name="confirmPassword"
-                            placeholder="••••••••"
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            required
-                        />
+                            <input
+                                type="password" className={`form-control ${errors.confirmPassword ? 'is-invalid' : ''}`} id="confirmPassword" name="confirmPassword" placeholder="••••••••"
+                                value={formData.confirmPassword} onChange={handleChange}
+                            />
                         </div>
+                        {errors.confirmPassword && <div className="invalid-feedback d-block">{errors.confirmPassword}</div>}
                     </div>
 
-                    <button type="submit" className="btn btn-primary w-100 py-2 mt-3 fw-bold">
-                        <i className="fa-solid fa-user-check me-2"></i> Registrarse
+                    <button type="submit" className="btn btn-primary my-3 w-100" disabled={isLoading}>
+                        {isLoading ? (
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        ) : (
+                            <i className="fa-solid fa-user-plus me-2"></i>
+                        )}
+                        Registrarse
                     </button>
-                    </form>
+                </form>
 
-                <div className="text-center mt-4 pt-3 border-top">
-                <p className="mb-0 text-muted">
-                    ¿Ya tienes una cuenta?{' '}
-                    <Link to="/login" className="text-primary text-decoration-none fw-semibold">
-                    Inicia sesión aquí
-                    </Link>
-                </p>
+                <div className="text-center mt-3 pt-3 border-top">
+                    <p className="text-muted">
+                        ¿Ya tienes una cuenta?{' '}
+                        <Link to="/login" className="text-primary text-decoration-none fw-semibold">
+                            Inicia sesión
+                        </Link>
+                    </p>
                 </div>
-
             </div>
         </div>
     )
