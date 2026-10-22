@@ -1,6 +1,6 @@
 const API_URL = ""
 
-export async function fetchJson(endopoint, options = {}){
+export async function fetchJson(endpoint, options = {}){
     const res = await fetch(`${API_URL}${endpoint}`, {headers: {"Content-Type": "application/json", ...options.headers},
         ...options,})
 
@@ -9,4 +9,3 @@ export async function fetchJson(endopoint, options = {}){
         }
         return res.json();
     }
-

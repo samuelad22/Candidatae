@@ -4,7 +4,7 @@ plugins {
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
-group = 'com.candidatea'
+group = 'com.candidatae'
 version = '0.0.1-SNAPSHOT'
 
 java {
@@ -22,15 +22,46 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	// Migraciones versionadas del esquema.
+	// OJO: en Spring Boot 4 hace falta el STARTER (no vale solo flyway-core),
+	// porque es el starter el que contribute el bean Flyway y su inicialización.
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	// Cliente HTTP para las integraciones externas (OAuth2 de Google).
+	// En Spring Boot 4 el auto-config de RestClient.Builder vive en este módulo aparte.
+	implementation 'org.springframework.boot:spring-boot-starter-restclient'
+	// Módulo de base de datos para el dialecto PostgreSQL (Flyway 10+ lo separa del core).
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+	// NOTA: NO usamos spring-boot-starter-oauth2-client a propósito.
+	// La vinculación de Gmail es un flujo OAuth2 "authorization_code" manual y stateless
+	// (ver docs/PLAN-CRUD-CUENTA-CORREO.md, decisión D2). Añadir el starter obligaría a
+	// configurar GOOGLE_CLIENT_ID para que la app arranque, y su auto-configuración de
+	// ClientRegistration no encaja con una sesión propia basada en JWT.
+	// El intercambio de "code" por token y la lectura del perfil se hacen con RestClient.
+	// Documentación OpenAPI / Swagger UI. springdoc 3.x es el compatible con Spring Boot 4.
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
+	// JJWT: librería para crear, firmar y validar tokens JWT.
+	// - jjwt-api: las interfaces que usamos en nuestro código.
+	// - jjwt-impl / jjwt-jackson: la implementación y el serializador JSON (solo en runtime).
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
-	runtimeOnly 'com.mysql:mysql-connector-j'
+	// Base de datos: PostgreSQL es el motor del proyecto (ver docker-compose.yml).
+	// MySQL queda fuera: mantener un segundo driver solo confunde.
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	// Pruebas de integración contra un PostgreSQL real (Testcontainers).
+	// OJO: en Spring Boot 4 el artefacto es "spring-boot-testcontainers" (no "-starter-"),
+	// y Testcontainers va por la versión 2.x.
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation platform('org.testcontainers:testcontainers-bom:2.0.5')
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
