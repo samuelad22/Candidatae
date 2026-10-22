@@ -379,5 +379,21 @@ class CuentaCorreoControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.message").value("Falta el parámetro obligatorio 'code'"));
         }
+
+        @Test
+        @DisplayName("Test 17: cancelacion en Google con param error -> 302 a linked=error y limpia cookie")
+        void cancelacionEnGoogleRedirigeConError() throws Exception {
+            mockMvc.perform(get("/api/email-accounts/gmail/callback")
+                            .param("error", "access_denied")
+                            .param("state", "state-xyz"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(result -> {
+                        String url = result.getResponse().getRedirectedUrl();
+                        assertNotNull(url);
+                        assertTrue(url.contains("linked=error"));
+                        assertTrue(url.contains("access_denied"));
+                    })
+                    .andExpect(cookie().maxAge("gmail_link_state", 0));
+        }
     }
 }

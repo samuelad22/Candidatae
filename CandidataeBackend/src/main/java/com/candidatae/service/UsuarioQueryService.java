@@ -42,7 +42,8 @@ public class UsuarioQueryService {
         String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
 
         return usuarioRepository.findByEmail(normalizedEmail)
+                .filter(Usuario::isActive)
                 .map(Usuario::getId)
-                .orElseThrow(() -> ApiException.unauthorized("Usuario no autenticado"));
+                .orElseThrow(() -> ApiException.unauthorized("Usuario no autenticado o inactivo"));
     }
 }

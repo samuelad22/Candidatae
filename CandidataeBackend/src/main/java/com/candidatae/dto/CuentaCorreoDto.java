@@ -6,6 +6,7 @@ import com.candidatae.domain.ProveedorCorreo;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 
@@ -48,6 +49,7 @@ public final class CuentaCorreoDto {
 
             @NotBlank(message = "El email de la cuenta es obligatorio")
             @Email(message = "El email de la cuenta no tiene un formato válido")
+            @Size(max = 255, message = "El email de la cuenta no puede superar los 255 caracteres")
             String emailCuenta,
 
             @NotNull(message = "El proveedor es obligatorio")
@@ -76,6 +78,7 @@ public final class CuentaCorreoDto {
     public record Update(
 
             @Email(message = "El email de la cuenta no tiene un formato válido")
+            @Size(max = 255, message = "El email de la cuenta no puede superar los 255 caracteres")
             String emailCuenta,
 
             EstadoConexion estadoConexion,

@@ -9,5 +9,6 @@ package com.candidatae.domain;
  */
 public enum ProveedorCorreo {
 
-    GMAIL
+    GMAIL,
+    OUTLOOK
 }

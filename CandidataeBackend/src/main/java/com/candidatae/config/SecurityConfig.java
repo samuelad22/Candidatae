@@ -52,7 +52,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Registro y login: son los únicos puntos públicos de la API
                         // de autenticación (el usuario aún no tiene sesión al entrar).
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                         // Callback de la vinculación OAuth2 de Gmail: lo llama Google, no el
                         // usuario, así que no lleva JWT. La protección la aporta el "state"
                         // firmado que valida el controlador (ver GmailOAuthService).

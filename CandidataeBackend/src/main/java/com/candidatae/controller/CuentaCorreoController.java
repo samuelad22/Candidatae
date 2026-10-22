@@ -150,11 +150,27 @@ public class CuentaCorreoController {
      * {@code ?linked=error}.</p>
      */
     @GetMapping("/gmail/callback")
-    public void callbackGmail(@RequestParam("code") String code,
-                              @RequestParam("state") String state,
+    public void callbackGmail(@RequestParam(name = "code", required = false) String code,
+                              @RequestParam(name = "state", required = false) String state,
+                              @RequestParam(name = "error", required = false) String error,
                               @CookieValue(name = STATE_COOKIE, required = false) String cookieState,
-                              HttpServletResponse response) throws IOException {
+                              HttpServletResponse response) throws Exception {
 
+        if (error != null && !error.isBlank()) {
+            limpiarCookieState(response);
+            log.warn("Google ha devuelto un error en el callback de OAuth: {}", error);
+            response.sendRedirect(redirectUri("error", "Google rechazó la autorización (" + error + ")"));
+            return;
+        }
+
+        if (code == null || code.isBlank()) {
+            throw new org.springframework.web.bind.MissingServletRequestParameterException("code", "String");
+        }
+        if (state == null || state.isBlank()) {
+            throw new org.springframework.web.bind.MissingServletRequestParameterException("state", "String");
+        }
+
+        limpiarCookieState(response);
         try {
             GmailOAuthService.GmailToken token = gmailOAuthService.completarVinculacion(code, state, cookieState);
             cuentaCorreoService.registrarVinculacion(token.usuarioId(), token.email(), token.refreshToken());
@@ -163,6 +179,17 @@ public class CuentaCorreoController {
             log.warn("La vinculación con Gmail ha fallado: {}", e.getMessage());
             response.sendRedirect(redirectUri("error", e.getMessage()));
         }
+    }
+
+    private void limpiarCookieState(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from(STATE_COOKIE, "")
+                .httpOnly(true)
+                .secure(secureCookie)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     /**

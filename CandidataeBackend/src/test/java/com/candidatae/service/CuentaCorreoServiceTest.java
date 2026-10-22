@@ -200,6 +200,22 @@ class CuentaCorreoServiceTest {
             verify(cuentaCorreoRepository).save(existente);
             verify(usuarioRepository, never()).findById(any());
         }
+
+        @Test
+        @DisplayName("Test 7b: al reutilizar cuenta desconectada, actualiza el proveedor si cambia")
+        void alReutilizarCuentaActualizaProveedor() {
+            CuentaCorreo existente = cuenta(1L, USUARIO_ANA, "ana@gmail.com", EstadoConexion.DESCONECTADA);
+            existente.setProveedor(ProveedorCorreo.GMAIL);
+            when(cuentaCorreoRepository.findByUsuarioIdAndEmailCuentaIgnoreCase(USUARIO_ANA, "ana@gmail.com"))
+                    .thenReturn(Optional.of(existente));
+            when(cuentaCorreoRepository.save(any(CuentaCorreo.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            CuentaCorreoDto.Response dto = service.crear(
+                    new CuentaCorreoDto.Create("ana@gmail.com", ProveedorCorreo.OUTLOOK), USUARIO_ANA);
+
+            assertEquals("OUTLOOK", dto.proveedor());
+            assertEquals(ProveedorCorreo.OUTLOOK, existente.getProveedor());
+        }
     }
 
     @Nested
@@ -261,6 +277,25 @@ class CuentaCorreoServiceTest {
         }
 
         @Test
+        @DisplayName("Test 11b: cambiar email en cuenta ACTIVA degrada a PENDIENTE y anula el token")
+        void cambiarEmailEnCuentaActivaDegradaAPendiente() {
+            CuentaCorreo existente = cuenta(1L, USUARIO_ANA, "ana@gmail.com", EstadoConexion.ACTIVA);
+            existente.setRefreshTokenCifrado(new byte[]{1, 2, 3});
+            existente.setCursorSincronizacion("cursor-123");
+            when(cuentaCorreoRepository.findByIdAndUsuarioId(1L, USUARIO_ANA)).thenReturn(Optional.of(existente));
+            when(cuentaCorreoRepository.findByUsuarioIdAndEmailCuentaIgnoreCase(USUARIO_ANA, "nuevo@gmail.com"))
+                    .thenReturn(Optional.empty());
+            when(cuentaCorreoRepository.save(any(CuentaCorreo.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            var res = service.actualizar(1L, USUARIO_ANA, new CuentaCorreoDto.Update("nuevo@gmail.com", null, null));
+
+            assertEquals("PENDIENTE", res.estadoConexion());
+            assertEquals("nuevo@gmail.com", res.emailCuenta());
+            assertNull(existente.getRefreshTokenCifrado());
+            assertNull(existente.getCursorSincronizacion());
+        }
+
+        @Test
         @DisplayName("Test 12: una cuenta ajena se responde 404")
         void unaCuentaAjenaSeResponde404() {
             when(cuentaCorreoRepository.findByIdAndUsuarioId(1L, USUARIO_LUIS)).thenReturn(Optional.empty());
@@ -301,6 +336,23 @@ class CuentaCorreoServiceTest {
             service.desconectar(1L, USUARIO_ANA);
 
             verify(gmailOAuthService).revocarToken("refresh-token-en-claro");
+        }
+
+        @Test
+        @DisplayName("Test 14b: si el token no se puede descifrar, desconecta igualmente sin fallar")
+        void tokenCorruptoDesconectaIgualmente() {
+            CuentaCorreo existente = cuenta(1L, USUARIO_ANA, "ana@gmail.com", EstadoConexion.ACTIVA);
+            existente.setRefreshTokenCifrado("token-corrupto".getBytes());
+            when(cuentaCorreoRepository.findByIdAndUsuarioId(1L, USUARIO_ANA)).thenReturn(Optional.of(existente));
+            when(tokenCipherService.decrypt(any(byte[].class))).thenThrow(new IllegalStateException("Clave incorrecta"));
+            when(cuentaCorreoRepository.save(any(CuentaCorreo.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            service.desconectar(1L, USUARIO_ANA);
+
+            assertEquals(EstadoConexion.DESCONECTADA, existente.getEstadoConexion());
+            assertNull(existente.getRefreshTokenCifrado());
+            assertNotNull(existente.getFechaDesconexion());
+            verify(gmailOAuthService, never()).revocarToken(any());
         }
 
         @Test

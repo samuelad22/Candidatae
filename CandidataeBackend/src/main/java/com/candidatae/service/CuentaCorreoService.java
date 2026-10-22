@@ -94,6 +94,9 @@ public class CuentaCorreoService {
             }
 
             // Reutilizamos la fila desconectada en lugar de duplicarla.
+            if (dto.proveedor() != null) {
+                existente.setProveedor(dto.proveedor());
+            }
             existente.setEstadoConexion(EstadoConexion.PENDIENTE);
             existente.setFechaDesconexion(null);
             existente.setCursorSincronizacion(null);
@@ -121,7 +124,7 @@ public class CuentaCorreoService {
      * válido guardado", y eso solo se puede afirmar tras un intercambio real).</p>
      *
      * @throws ApiException 404 si no existe o no es del usuario.
-     * @throws ApiException 400 si se intenta un cambio de estado no permitido.
+     * @throws ApiException 400 si se intenta un cambio de estado no permitido o cambiar el email de una cuenta ACTIVA.
      * @throws ApiException 409 si el nuevo email ya está en uso por otra cuenta.
      */
     @Transactional
@@ -130,15 +133,25 @@ public class CuentaCorreoService {
 
         if (dto.emailCuenta() != null && !dto.emailCuenta().isBlank()) {
             String email = normalizar(dto.emailCuenta());
-            boolean yaLaTiene = cuentaCorreoRepository
-                    .findByUsuarioIdAndEmailCuentaIgnoreCase(usuarioId, email)
-                    .map(existente -> !existente.getId().equals(cuenta.getId()))
-                    .orElse(false);
+            if (!email.equalsIgnoreCase(cuenta.getEmailCuenta())) {
+                boolean yaLaTiene = cuentaCorreoRepository
+                        .findByUsuarioIdAndEmailCuentaIgnoreCase(usuarioId, email)
+                        .map(existente -> !existente.getId().equals(cuenta.getId()))
+                        .orElse(false);
 
-            if (yaLaTiene) {
-                throw ApiException.conflict("Ya tienes registrada la cuenta de correo " + email);
+                if (yaLaTiene) {
+                    throw ApiException.conflict("Ya tienes registrada la cuenta de correo " + email);
+                }
+
+                // Al cambiar el email de una cuenta ACTIVA, las credenciales OAuth del buzón
+                // anterior quedan invalidadas y la cuenta pasa a requerir nueva autorización.
+                if (cuenta.getEstadoConexion() == EstadoConexion.ACTIVA) {
+                    cuenta.setRefreshTokenCifrado(null);
+                    cuenta.setCursorSincronizacion(null);
+                    cuenta.setEstadoConexion(EstadoConexion.PENDIENTE);
+                }
+                cuenta.setEmailCuenta(email);
             }
-            cuenta.setEmailCuenta(email);
         }
 
         if (dto.estadoConexion() != null) {
@@ -174,8 +187,13 @@ public class CuentaCorreoService {
         CuentaCorreo cuenta = buscar(id, usuarioId);
 
         if (cuenta.getRefreshTokenCifrado() != null) {
-            // Revocamos en Google (best effort) para que el acceso muera de inmediato.
-            gmailOAuthService.revocarToken(tokenCipherService.decrypt(cuenta.getRefreshTokenCifrado()));
+            try {
+                // Revocamos en Google (best effort) para que el acceso muera de inmediato.
+                String tokenEnClaro = tokenCipherService.decrypt(cuenta.getRefreshTokenCifrado());
+                gmailOAuthService.revocarToken(tokenEnClaro);
+            } catch (Exception e) {
+                log.warn("No se ha podido descifrar o revocar el token en Google para la cuenta {}: {}. Continuando con la desconexión local.", id, e.getMessage());
+            }
         }
 
         cuenta.setRefreshTokenCifrado(null);

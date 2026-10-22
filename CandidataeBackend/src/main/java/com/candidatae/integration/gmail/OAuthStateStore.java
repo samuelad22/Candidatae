@@ -50,6 +50,9 @@ public class OAuthStateStore {
     public String register(Long usuarioId) {
         purgeExpired();
 
+        // Evita acumulación en memoria: un usuario solo necesita una vinculación activa a la vez
+        pendingLinks.entrySet().removeIf(entry -> entry.getValue().usuarioId().equals(usuarioId));
+
         byte[] randomBytes = new byte[STATE_BYTES];
         secureRandom.nextBytes(randomBytes);
         String state = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
