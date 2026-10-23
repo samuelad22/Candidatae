@@ -18,8 +18,8 @@
     aspect-ratio: 190 / 68;
     flex-shrink: 0;
     background-color: var(--id-icon-isotype); 
-    -webkit-mask: url('../../../assets/brand/logotype.svg') no-repeat center / contain;
-    mask: url('../../../assets/brand/logotype.svg') no-repeat center / contain;
+    -webkit-mask: url('../../assets/brand/logotype.svg') no-repeat center / contain;
+    mask: url('../../assets/brand/logotype.svg') no-repeat center / contain;
 }
 
 .isotype-icon {

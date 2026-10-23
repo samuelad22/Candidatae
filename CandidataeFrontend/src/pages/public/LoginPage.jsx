@@ -133,7 +133,7 @@ export default function LoginPage() {
                 <div className="text-center mt-3 pt-3 border-top">
                     <p className="text-muted">
                         ¿No tienes una cuenta?{' '}
-                        <Link to="/register" className="text-primary text-decoration-none fw-semibold">
+                        <Link to="/registro" className="text-primary text-decoration-none fw-semibold">
                             Regístrate aquí
                         </Link>
                     </p>

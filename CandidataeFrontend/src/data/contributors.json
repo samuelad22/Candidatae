@@ -1,0 +1,56 @@
+[
+    {
+        "id": 1,
+        "name": "Samuel Alba Domingos",
+        "role": "Desarrollador Web | Frontend",
+        "bio": "Desarrollador web Full-Stack especializado en tecnologías como Laravel, React.js y Spring Boot.",
+        "linkedin": "https://www.linkedin.com/in/samuel-alba-domingos",
+        "github": "https://github.com/samuelad22",
+        "image": "https://media.licdn.com/dms/image/v2/D4E03AQGDsz03VoprSQ/profile-displayphoto-crop_800_800/B4EaDiL85FIoAI-/0/1790501180642?e=1794441600&v=beta&t=JJmh8TnbYLRXsGADUIt4UcFEtkLJoEzV24s6UWrbFRY"
+    },
+    {
+        "id": 2,
+        "name": "Alejandro Bernal",
+        "role": "Software Developer Full Stack | Backend",
+        "bio": "Desarrollador de software con conocimientos en backend con Java y Spring Boot, frontend con Angular y React.",
+        "linkedin": "https://www.linkedin.com/in/alejandro-bernal-761972419",
+        "github": "https://github.com/Alejandro-zf",
+        "image": "https://media.licdn.com/dms/image/v2/D4E03AQEqW03fKxw26w/profile-displayphoto-crop_800_800/B4EaEdv2IHKEAI-/0/1791500445562?e=1794441600&v=beta&t=SrAqT5H4Er4gJowDtsgCKd8jBINpi3dFI3uprm1h9Yg"
+    },
+    {
+        "id": 3,
+        "name": "Eduardo Davila Zevallos",
+        "role": "Full Stack Developer | Frontend",
+        "bio": "Desarrollador Web especializado en el ecosistema PHP y Laravel, con una base sólida en el desarrollo backend y bases de datos.",
+        "linkedin": "https://www.linkedin.com/in/edavilaz",
+        "github": "https://github.com/EduardoDavilaZ",
+        "image": "https://media.licdn.com/dms/image/v2/D4E35AQHGBCRKU0-ceA/profile-framedphoto-shrink_800_800/B4EZ9gbhxmKQAY-/0/1784029257314?e=1793376000&v=beta&t=OeEnjIb-EMgFAwqntPVSZuo3XdsBkB_wArj23a6Fox0"
+    },
+    {
+        "id": 4,
+        "name": "Pelayo Hernández Areces",
+        "role": "Desarrollador Web | Backend",
+        "bio": "Transformando curiosidad técnica en soluciones reales. Actualmente perfeccionando mis habilidades como desarrollador.",
+        "linkedin": "https://www.linkedin.com/in/pelayo-hern%C3%A1ndez-areces/",
+        "github": "https://github.com/PelayoHer",
+        "image": "https://media.licdn.com/dms/image/v2/D4E35AQHhyrSD-YM04w/profile-framedphoto-shrink_800_800/B4EZ0K0NpPI8Ag-/0/1774002953091?e=1793376000&v=beta&t=vZsxCUFXUtkSLx34birdgN0FwZUWEJ0p2zWtfi9r8K4"
+    },
+    {
+        "id": 5,
+        "name": "Sara Lorenzo Acebal",
+        "role": "Desarrollador Web Full Stack | Frontend",
+        "bio": "Desarrollador de Aplicaciones Web con una base solida en Java, HTML, CSS, JavaScript, Spring Boot y Bases de datos.",
+        "linkedin": "https://www.linkedin.com/in/sara-lorenzo-acebal-04b419348/",
+        "github": "https://github.com/SaraLorenzoAcebal-prf",
+        "image": "https://media.licdn.com/dms/image/v2/D5635AQGxFhqaASlqew/profile-framedphoto-shrink_800_800/B56Zok7YCHIYAg-/0/1761556136341?e=1793376000&v=beta&t=gfOhLbXJrTSHCJogwQLsCUdKHA4uZPNg3A7D_E2QGqY"
+    },
+    {
+        "id": 6,
+        "name": "Ángel Marín Rodríguez",
+        "role": "Software Engineer | Backend",
+        "bio": "Ingeniero Informático especializado en desarrollo Backend especializado en Java (Spring Boot), Node.js, Docker y Cloud.",
+        "linkedin": "https://www.linkedin.com/in/%C3%A1ngel-mar%C3%ADn-rodr%C3%ADguez-9376a22ab/",
+        "github": "https://github.com/amarin-tech",
+        "image": "https://media.licdn.com/dms/image/v2/D4E35AQG-vgEXVbNARw/profile-framedphoto-shrink_800_800/B4EZ0fXuP_JAAg-/0/1774347806125?e=1793376000&v=beta&t=nLRZvEB-K0J3b8ntKwH_yd4PYnjm50zla2FFUePy0ks"
+    }
+]

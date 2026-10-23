@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import laptopMockup from '../../../assets/img/example-laptop.png' // Tu imagen de la laptop con transparencia/fondo oscuro
-import styles from './Hero.module.css'
+import styles from '../../../styles/public/Hero.module.css'
 
 export default function Hero() {
     return (
@@ -27,13 +27,13 @@ export default function Hero() {
 
                         {/* ACTIONS */}
                         <div className="d-flex flex-wrap align-items-center gap-3 mb-5">
-                            <Link to="/register" className="btn btn-primary rounded-pill px-4 py-3 fw-semibold d-inline-flex align-items-center gap-2">
+                            <Link to="/registro" className="btn btn-primary rounded-pill px-4 py-3 fw-semibold d-inline-flex align-items-center gap-2">
                                 <i className="fa-solid fa-user-plus"></i>
                                 <span>Comenzar ahora</span>
                                 <i className="fa-solid fa-arrow-right ms-1"></i>
                             </Link>
 
-                            <Link to="/como-usar" className="btn btn-tertiary rounded-pill px-4 py-3 fw-semibold d-inline-flex align-items-center gap-2">
+                            <Link to="/guia" className="btn btn-tertiary rounded-pill px-4 py-3 fw-semibold d-inline-flex align-items-center gap-2">
                                 <span>Ver cómo funciona</span>
                             </Link>
                         </div>

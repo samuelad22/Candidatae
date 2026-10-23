@@ -50,6 +50,7 @@
         mask-image: linear-gradient(to right, transparent 2%, black 12%);
     }
 
+
     &::before {
         content: '';
         position: absolute;

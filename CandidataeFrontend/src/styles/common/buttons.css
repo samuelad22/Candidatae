@@ -9,13 +9,23 @@
     }
 }
 
-.btn-seccondary {
-    background-color: var(--id-color-accent) !important;
-    color: var(--icon-color) !important;
+.btn-secondary {
+    background-color: var(--id-bg-primary) !important;
+    color: var(--id-text-primary) !important;
+    border-color: var(--id-text-primary) !important;
+
+    &:hover {
+        background-color: var(--id-color-accent-muted) !important;
+    }
 }
 
 .btn-tertiary {
     background-color: var(--id-bg-primary) !important;
     color: var(--id-text-primary) !important;
     border-color: var(--id-text-primary) !important;
+
+    &:hover {
+        background-color: var(--id-text-primary) !important;
+        color: var(--id-text-inverse) !important;
+    }
 }

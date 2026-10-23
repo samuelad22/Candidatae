@@ -1,49 +1,93 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { logoutUser } from '../../../services/authService'
+import React from 'react'
+import { NavLink } from 'react-router-dom'
 import ThemeToggle from '../ThemeToggler'
+import styles from '../../../styles/app/Navbar.module.css'
 
 export default function Navbar() {
-    const navigate = useNavigate()
-    const userEmail = localStorage.getItem('userEmail') || 'Usuario'
-
-    const handleLogout = () => {
-        logoutUser()
-        navigate('/login')
-    }
-
     return (
-        <nav className="navbar navbar-expand-lg navbar-dark bg-main border-bottom border-secondary border-opacity-25 py-2">
-            <div className="container">
-                <NavLink className="navbar-brand d-flex align-items-center gap-2 fw-bold text-uppercase" to="/dashboard">
-                    <i className="fa-solid fa-briefcase text-accent fs-4"></i>
-                    <span>Candidatae</span>
+        <>
+            <nav className={`navbar navbar-expand-lg d-none d-lg-flex ${styles['navbar-main']}`}>
+                <div className="container d-flex justify-content-between align-items-center">
+                    
+                    <NavLink 
+                        to="/panel" 
+                        end
+                        className={`text-decoration-none d-flex align-items-center gap-2 ${styles['brand-container']}`}
+                    >
+                        <div className={styles['logotype-icon']} role="img" aria-label="Candidatae Logotipo" />
+                    </NavLink>
+
+                    <div className="d-flex align-items-center gap-4">
+                        <NavLink 
+                            to="/panel" 
+                            end 
+                            className={({ isActive }) => `${styles['nav-link']} ${isActive ? styles.active : ''}`}
+                        >
+                            <i className="fa-solid fa-house me-2"></i>Inicio
+                        </NavLink>
+
+                        <NavLink 
+                            to="/panel/ofertas" 
+                            className={({ isActive }) => `${styles['nav-link']} ${isActive ? styles.active : ''}`}
+                        >
+                            <i className="fa-solid fa-briefcase me-2"></i>Ofertas
+                        </NavLink>
+
+                        <NavLink 
+                            to="/panel/candidaturas" 
+                            className={({ isActive }) => `${styles['nav-link']} ${isActive ? styles.active : ''}`}
+                        >
+                            <i className="fa-solid fa-file-lines me-2"></i>Candidaturas
+                        </NavLink>
+
+                        <NavLink 
+                            to="/panel/perfil" 
+                            className={({ isActive }) => `${styles['nav-link']} ${isActive ? styles.active : ''}`}
+                        >
+                            <i className="fa-solid fa-user me-2"></i>Perfil
+                        </NavLink>
+                    </div>
+
+                    <div className="d-flex align-items-center gap-3">
+                        <ThemeToggle />
+                    </div>
+                </div>
+            </nav>
+
+            <nav className={`d-lg-none ${styles['bottom-nav']}`}>
+                <NavLink 
+                    to="/panel" 
+                    end 
+                    className={({ isActive }) => `${styles['bottom-item']} ${isActive ? styles['bottom-active'] : ''}`}
+                >
+                    <i className="fa-solid fa-house"></i>
+                    <span>Inicio</span>
                 </NavLink>
 
-                {/* Enlaces principales */}
-                <div className="navbar-nav mx-auto d-flex flex-row gap-4">
-                    <NavLink to="/dashboard" className={({ isActive }) => `nav-link d-flex align-items-center gap-2 ${isActive ? 'active text-accent' : ''}`}>
-                        <i className="fa-solid fa-house"></i> Inicio
-                    </NavLink>
-                    <NavLink to="/ofertas" className={({ isActive }) => `nav-link d-flex align-items-center gap-2 ${isActive ? 'active text-accent' : ''}`}>
-                        <i className="fa-solid fa-briefcase"></i> Ofertas
-                    </NavLink>
-                    <NavLink to="/candidaturas" className={({ isActive }) => `nav-link d-flex align-items-center gap-2 ${isActive ? 'active text-accent' : ''}`}>
-                        <i className="fa-solid fa-file-lines"></i> Candidaturas
-                    </NavLink>
-                    <NavLink to="/perfil" className={({ isActive }) => `nav-link d-flex align-items-center gap-2 ${isActive ? 'active text-accent' : ''}`}>
-                        <i className="fa-solid fa-user"></i> Perfil
-                    </NavLink>
-                </div>
+                <NavLink 
+                    to="/panel/ofertas" 
+                    className={({ isActive }) => `${styles['bottom-item']} ${isActive ? styles['bottom-active'] : ''}`}
+                >
+                    <i className="fa-solid fa-briefcase"></i>
+                    <span>Ofertas</span>
+                </NavLink>
 
-                {/* Info de usuario y ThemeToggle */}
-                <div className="d-flex align-items-center gap-3">
-                    <ThemeToggle />
-                    <span className="small text-muted d-none d-md-inline">{userEmail}</span>
-                    <button onClick={handleLogout} className="btn btn-sm btn-outline-danger rounded-circle" title="Cerrar sesión">
-                        <i className="fa-solid fa-right-from-bracket"></i>
-                    </button>
-                </div>
-            </div>
-        </nav>
+                <NavLink 
+                    to="/panel/candidaturas" 
+                    className={({ isActive }) => `${styles['bottom-item']} ${isActive ? styles['bottom-active'] : ''}`}
+                >
+                    <i className="fa-solid fa-file-lines"></i>
+                    <span>Candidaturas</span>
+                </NavLink>
+
+                <NavLink 
+                    to="/panel/perfil" 
+                    className={({ isActive }) => `${styles['bottom-item']} ${isActive ? styles['bottom-active'] : ''}`}
+                >
+                    <i className="fa-solid fa-user"></i>
+                    <span>Perfil</span>
+                </NavLink>
+            </nav>
+        </>
     )
 }
