@@ -11,10 +11,11 @@
 
 .btn-seccondary {
     background-color: var(--id-color-accent) !important;
-    color: var(--id-text-inverse) !important;
+    color: var(--icon-color) !important;
 }
 
 .btn-tertiary {
-    background-color: var(--id-color-accent) !important;
-    color: var(--id-text-inverse) !important;
+    background-color: var(--id-bg-primary) !important;
+    color: var(--id-text-primary) !important;
+    border-color: var(--id-text-primary) !important;
 }

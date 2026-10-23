@@ -7,7 +7,7 @@ export default function AppRoutes() {
     return (
         <Routes>
             <Route path="/*" element={<PublicRoutes />} />
-            <Route path="/dashboard/*" element={<PrivateRoutes />} />
+            <Route path="/panel/*" element={<PrivateRoutes />} />
         </Routes>
     )
 }

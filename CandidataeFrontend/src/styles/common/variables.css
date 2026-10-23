@@ -1,10 +1,9 @@
 [data-bs-theme="dark"] {
     /* Backgrounds */
-    --id-bg-primary: #0F0F0F;
-    --id-bg-secondary: #11191D;
-    --id-bg-surface: #182126;
-    --id-bg-surface-hover: #222D33;
-    --id-bg-overlay: rgba(0, 0, 0, 0.35);
+    --id-bg-primary: #0A0F13; 
+    --id-bg-secondary: #12191F;
+    --id-bg-surface: #172127;
+    --id-bg-surface-hover: #202D35;
 
     /* Accent colors */
     --id-color-accent: #D9FF6B;
@@ -26,6 +25,7 @@
     /* Icons */
     --id-icon-color: #D9FF6B;
     --id-icon-color-muted: #9CA3AF;
+    --id-icon-isotype: #ffffff;
 
     /* Status colors */
     --id-color-success: #42C98A;
@@ -71,7 +71,7 @@
     --id-input-success-border: #42C98A;
 
     /* Navigation */
-    --id-navbar-bg: rgba(15, 15, 15, 0.96);
+    --id-navbar-bg: rgba(15, 15, 15, 0.80);
     --id-navbar-border: rgba(193, 200, 204, 0.12);
     --id-navbar-height: 72px;
 
@@ -124,6 +124,7 @@
     /* Icons */
     --id-icon-color: #1A1A1A;
     --id-icon-color-muted: #A7A29A;
+    --id-icon-isotype: #0b0b0b;
 
     /* Status colors */
     --id-color-success: #6B7F6B;
