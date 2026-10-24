@@ -15,13 +15,19 @@ import com.candidatae.repository.EmpresaRepository;
 import com.candidatae.repository.PlataformaRepository;
 import com.candidatae.repository.UsuarioRepository;
 import com.candidatae.security.CurrentUserProvider;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -106,6 +112,90 @@ public class CandidaturaService {
         log.info("Candidatura ID {} creada exitosamente para usuario ID {}", guardada.getId(), usuarioId);
 
         return CandidaturaResponse.fromEntity(guardada);
+    }
+
+    /**
+     * Lista y filtra las candidaturas del usuario actualmente autenticado.
+     */
+    @Transactional(readOnly = true)
+    public List<CandidaturaResponse> listar(
+            String platform,
+            EstadoCandidatura status,
+            String company,
+            LocalDate from,
+            LocalDate to,
+            String search
+    ) {
+        Long usuarioId = currentUserProvider.requireUserId();
+        return listarParaUsuario(usuarioId, platform, status, company, from, to, search);
+    }
+
+    /**
+     * Obtiene el listado de candidaturas filtrado y ordenado para un usuario específico.
+     */
+    @Transactional(readOnly = true)
+    public List<CandidaturaResponse> listarParaUsuario(
+            Long usuarioId,
+            String platform,
+            EstadoCandidatura status,
+            String company,
+            LocalDate from,
+            LocalDate to,
+            String search
+    ) {
+        Specification<Candidatura> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // 1. Filtro obligatorio por usuario autenticado (aislamiento multiusuario)
+            predicates.add(cb.equal(root.get("usuario").get("id"), usuarioId));
+
+            // 2. Filtro opcional por código de plataforma (insensible a mayúsculas)
+            if (platform != null && !platform.isBlank()) {
+                predicates.add(cb.equal(
+                        cb.upper(root.get("plataforma").get("codigo")),
+                        platform.trim().toUpperCase(Locale.ROOT)
+                ));
+            }
+
+            // 3. Filtro opcional por estado actual de la candidatura
+            if (status != null) {
+                predicates.add(cb.equal(root.get("estadoActual"), status));
+            }
+
+            // 4. Filtro opcional por nombre de empresa (búsqueda parcial insensible a mayúsculas)
+            if (company != null && !company.isBlank()) {
+                String companyPattern = "%" + company.trim().toLowerCase(Locale.ROOT) + "%";
+                predicates.add(cb.like(cb.lower(root.get("empresa").get("nombre")), companyPattern));
+            }
+
+            // 5. Filtro opcional por rango de fechas de solicitud (from y to)
+            if (from != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("fechaSolicitud"), from));
+            }
+            if (to != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("fechaSolicitud"), to));
+            }
+
+            // 6. Filtro opcional de texto libre en puesto, nombre de empresa o ubicación
+            if (search != null && !search.isBlank()) {
+                String searchPattern = "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
+                Predicate matchPuesto = cb.like(cb.lower(root.get("puesto")), searchPattern);
+                Predicate matchEmpresa = cb.like(cb.lower(root.get("empresa").get("nombre")), searchPattern);
+                Predicate matchUbicacion = cb.like(cb.lower(root.get("ubicacion")), searchPattern);
+
+                predicates.add(cb.or(matchPuesto, matchEmpresa, matchUbicacion));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        // Orden descendente por fecha de último cambio
+        Sort sort = Sort.by(Sort.Direction.DESC, "fechaUltimoCambio");
+        List<Candidatura> candidaturas = candidaturaRepository.findAll(spec, sort);
+
+        return candidaturas.stream()
+                .map(CandidaturaResponse::fromEntity)
+                .toList();
     }
 
     /**
