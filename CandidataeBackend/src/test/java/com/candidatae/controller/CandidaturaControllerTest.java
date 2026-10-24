@@ -38,8 +38,11 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -297,6 +300,40 @@ class CandidaturaControllerTest {
         mockMvc.perform(patch("/api/applications/100")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/applications/{id}: elimina la candidatura y devuelve 204 No Content")
+    void testEliminarCandidaturaExitoso() throws Exception {
+        doNothing().when(candidaturaService).eliminar(100L);
+
+        mockMvc.perform(delete("/api/applications/100")
+                        .header("Authorization", TOKEN))
+                .andExpect(status().isNoContent());
+
+        verify(candidaturaService).eliminar(100L);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/applications/{id}: devuelve 404 si la candidatura no existe o no pertenece al usuario")
+    void testEliminarNoEncontradaDevuelve404() throws Exception {
+        doThrow(ApiException.notFound("Candidatura no encontrada")).when(candidaturaService).eliminar(999L);
+
+        mockMvc.perform(delete("/api/applications/999")
+                        .header("Authorization", TOKEN))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Candidatura no encontrada"));
+
+        verify(candidaturaService).eliminar(999L);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/applications/{id}: devuelve 401 si no está autenticado")
+    void testEliminarSinAutenticacionDevuelve401() throws Exception {
+        mockMvc.perform(delete("/api/applications/100"))
                 .andExpect(status().isUnauthorized());
     }
 }

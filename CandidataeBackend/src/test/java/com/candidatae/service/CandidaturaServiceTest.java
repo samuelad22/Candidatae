@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -381,5 +382,44 @@ class CandidaturaServiceTest {
         assertEquals("Senior Tech Lead", response.puesto());
         assertEquals("Barcelona", response.ubicacion());
         assertEquals("bigtech:senior-tech-lead:barcelona", candidatura.getClaveDeduplicacion());
+    }
+
+    @Test
+    @DisplayName("eliminar: borra la candidatura de forma exitosa si pertenece al usuario")
+    void testEliminarExitoso() {
+        Long usuarioId = 10L;
+        Long candidaturaId = 100L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        Candidatura candidatura = Candidatura.builder()
+                .id(candidaturaId)
+                .usuario(usuario)
+                .puesto("Backend Developer")
+                .fechaSolicitud(LocalDate.now())
+                .estadoActual(EstadoCandidatura.ENVIADA)
+                .build();
+
+        when(candidaturaRepository.findByIdAndUsuarioId(candidaturaId, usuarioId))
+                .thenReturn(Optional.of(candidatura));
+
+        candidaturaService.eliminar(candidaturaId);
+
+        verify(candidaturaRepository).delete(candidatura);
+    }
+
+    @Test
+    @DisplayName("eliminar: lanza ApiException 404 si la candidatura no existe o no pertenece al usuario")
+    void testEliminarNoEncontradoLanza404() {
+        Long usuarioId = 10L;
+        Long candidaturaId = 999L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+        when(candidaturaRepository.findByIdAndUsuarioId(candidaturaId, usuarioId)).thenReturn(Optional.empty());
+
+        ApiException ex = assertThrows(ApiException.class, () -> candidaturaService.eliminar(candidaturaId));
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+        assertEquals("Candidatura no encontrada", ex.getMessage());
+
+        verify(candidaturaRepository, never()).delete(any(Candidatura.class));
     }
 }

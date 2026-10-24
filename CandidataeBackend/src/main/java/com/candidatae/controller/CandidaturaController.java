@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -87,5 +88,15 @@ public class CandidaturaController {
     ) {
         CandidaturaResponse response = candidaturaService.actualizar(id, request);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Elimina permanentemente una candidatura del usuario autenticado.
+     */
+    @Operation(summary = "Eliminar candidatura", description = "Elimina permanentemente una candidatura y sus datos asociados (historial, notas, contactos) si pertenece al usuario")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        candidaturaService.eliminar(id);
+        return ResponseEntity.noContent().build();
     }
 }

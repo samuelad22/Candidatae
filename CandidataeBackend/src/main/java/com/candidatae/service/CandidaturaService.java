@@ -361,6 +361,27 @@ public class CandidaturaService {
     }
 
     /**
+     * Elimina una candidatura del usuario actualmente autenticado.
+     */
+    @Transactional
+    public void eliminar(Long id) {
+        Long usuarioId = currentUserProvider.requireUserId();
+        eliminarParaUsuario(id, usuarioId);
+    }
+
+    /**
+     * Elimina una candidatura asegurando el aislamiento multiusuario.
+     */
+    @Transactional
+    public void eliminarParaUsuario(Long id, Long usuarioId) {
+        Candidatura candidatura = candidaturaRepository.findByIdAndUsuarioId(id, usuarioId)
+                .orElseThrow(() -> ApiException.notFound("Candidatura no encontrada"));
+
+        candidaturaRepository.delete(candidatura);
+        log.info("Candidatura ID {} eliminada exitosamente para usuario ID {}", id, usuarioId);
+    }
+
+    /**
      * Busca una empresa existente por nombre normalizado o crea una nueva si no existe.
      */
     private Empresa buscarOCrearEmpresa(String nombreOriginal) {
