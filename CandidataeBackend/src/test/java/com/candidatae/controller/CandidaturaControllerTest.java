@@ -7,6 +7,7 @@ import com.candidatae.domain.OrigenEvento;
 import com.candidatae.domain.Usuario;
 import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
+import com.candidatae.dto.CandidaturaUpdateRequest;
 import com.candidatae.dto.ContactoResponse;
 import com.candidatae.dto.HistorialEstadoResponse;
 import com.candidatae.dto.NotaResponse;
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -229,6 +231,72 @@ class CandidaturaControllerTest {
     @DisplayName("GET /api/applications/{id}: devuelve 401 si no está autenticado")
     void testObtenerDetalleSinAutenticacionDevuelve401() throws Exception {
         mockMvc.perform(get("/api/applications/100"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("PATCH /api/applications/{id}: actualiza correctamente y devuelve 200 con la candidatura")
+    void testActualizarCandidaturaExitoso() throws Exception {
+        when(candidaturaService.actualizar(eq(100L), any(CandidaturaUpdateRequest.class)))
+                .thenReturn(crearEjemploResponse(100L, "Google", "Lead Engineer", EstadoCandidatura.ENTREVISTA));
+
+        String jsonBody = """
+                {
+                    "puesto": "Lead Engineer",
+                    "estadoActual": "ENTREVISTA"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/applications/100")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(100))
+                .andExpect(jsonPath("$.empresaNombre").value("Google"))
+                .andExpect(jsonPath("$.puesto").value("Lead Engineer"))
+                .andExpect(jsonPath("$.estadoActual").value("ENTREVISTA"));
+
+        verify(candidaturaService).actualizar(eq(100L), any(CandidaturaUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/applications/{id}: devuelve 404 si la candidatura no existe o no pertenece al usuario")
+    void testActualizarNoEncontradaDevuelve404() throws Exception {
+        when(candidaturaService.actualizar(eq(999L), any(CandidaturaUpdateRequest.class)))
+                .thenThrow(ApiException.notFound("Candidatura no encontrada"));
+
+        String jsonBody = """
+                {
+                    "estadoActual": "ENTREVISTA"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/applications/999")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Candidatura no encontrada"));
+
+        verify(candidaturaService).actualizar(eq(999L), any(CandidaturaUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/applications/{id}: devuelve 401 si no está autenticado")
+    void testActualizarSinAutenticacionDevuelve401() throws Exception {
+        String jsonBody = """
+                {
+                    "estadoActual": "ENTREVISTA"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/applications/100")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
                 .andExpect(status().isUnauthorized());
     }
 }

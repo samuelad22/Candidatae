@@ -10,6 +10,7 @@ import com.candidatae.domain.Usuario;
 import com.candidatae.dto.CandidaturaCreateRequest;
 import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
+import com.candidatae.dto.CandidaturaUpdateRequest;
 import com.candidatae.exception.ApiException;
 import com.candidatae.repository.CandidaturaRepository;
 import com.candidatae.repository.EmpresaRepository;
@@ -217,6 +218,146 @@ public class CandidaturaService {
                 .orElseThrow(() -> ApiException.notFound("Candidatura no encontrada"));
 
         return CandidaturaDetailResponse.fromEntity(candidatura);
+    }
+
+    /**
+     * Actualiza parcialmente los datos o el estado de una candidatura del usuario autenticado.
+     */
+    @Transactional
+    public CandidaturaResponse actualizar(Long id, CandidaturaUpdateRequest request) {
+        Long usuarioId = currentUserProvider.requireUserId();
+        return actualizarParaUsuario(id, request, usuarioId);
+    }
+
+    /**
+     * Lógica de actualización de candidatura asegurando aislamiento multiusuario,
+     * recálculo de deduplicación y registro automático de transiciones de estado en el historial.
+     */
+    @Transactional
+    public CandidaturaResponse actualizarParaUsuario(Long id, CandidaturaUpdateRequest request, Long usuarioId) {
+        Candidatura candidatura = candidaturaRepository.findByIdAndUsuarioId(id, usuarioId)
+                .orElseThrow(() -> ApiException.notFound("Candidatura no encontrada"));
+
+        boolean huboCambios = false;
+        boolean recalcularClave = false;
+
+        // 1. Modificación de empresa
+        if (request.empresa() != null && !request.empresa().isBlank()) {
+            Empresa nuevaEmpresa = buscarOCrearEmpresa(request.empresa());
+            if (!nuevaEmpresa.equals(candidatura.getEmpresa())) {
+                candidatura.setEmpresa(nuevaEmpresa);
+                huboCambios = true;
+                recalcularClave = true;
+            }
+        }
+
+        // 2. Modificación de plataforma
+        if (request.plataformaCodigo() != null) {
+            if (request.plataformaCodigo().isBlank()) {
+                if (candidatura.getPlataforma() != null) {
+                    candidatura.setPlataforma(null);
+                    huboCambios = true;
+                    recalcularClave = true;
+                }
+            } else {
+                Plataforma nuevaPlataforma = plataformaRepository.findByCodigoIgnoreCase(request.plataformaCodigo().trim())
+                        .orElseThrow(() -> ApiException.badRequest("La plataforma '" + request.plataformaCodigo() + "' no es válida"));
+                if (!nuevaPlataforma.equals(candidatura.getPlataforma())) {
+                    candidatura.setPlataforma(nuevaPlataforma);
+                    huboCambios = true;
+                    recalcularClave = true;
+                }
+            }
+        }
+
+        // 3. Modificación de puesto
+        if (request.puesto() != null && !request.puesto().isBlank()) {
+            String nuevoPuesto = request.puesto().trim();
+            if (!nuevoPuesto.equals(candidatura.getPuesto())) {
+                candidatura.setPuesto(nuevoPuesto);
+                huboCambios = true;
+                recalcularClave = true;
+            }
+        }
+
+        // 4. Modificación de ubicación
+        if (request.ubicacion() != null) {
+            String nuevaUbicacion = request.ubicacion().isBlank() ? null : request.ubicacion().trim();
+            if (nuevaUbicacion != null ? !nuevaUbicacion.equals(candidatura.getUbicacion()) : candidatura.getUbicacion() != null) {
+                candidatura.setUbicacion(nuevaUbicacion);
+                huboCambios = true;
+                recalcularClave = true;
+            }
+        }
+
+        // 5. Modificación de modalidad
+        if (request.modalidad() != null && request.modalidad() != candidatura.getModalidad()) {
+            candidatura.setModalidad(request.modalidad());
+            huboCambios = true;
+        }
+
+        // 6. Modificación de salarioTexto
+        if (request.salarioTexto() != null) {
+            String nuevoSalario = request.salarioTexto().isBlank() ? null : request.salarioTexto().trim();
+            if (nuevoSalario != null ? !nuevoSalario.equals(candidatura.getSalarioTexto()) : candidatura.getSalarioTexto() != null) {
+                candidatura.setSalarioTexto(nuevoSalario);
+                huboCambios = true;
+            }
+        }
+
+        // 7. Modificación de enlaceOferta
+        if (request.enlaceOferta() != null) {
+            String nuevoEnlace = request.enlaceOferta().isBlank() ? null : request.enlaceOferta().trim();
+            if (nuevoEnlace != null ? !nuevoEnlace.equals(candidatura.getEnlaceOferta()) : candidatura.getEnlaceOferta() != null) {
+                candidatura.setEnlaceOferta(nuevoEnlace);
+                huboCambios = true;
+            }
+        }
+
+        // 8. Modificación de fechaSolicitud
+        if (request.fechaSolicitud() != null && !request.fechaSolicitud().equals(candidatura.getFechaSolicitud())) {
+            candidatura.setFechaSolicitud(request.fechaSolicitud());
+            huboCambios = true;
+        }
+
+        // 9. Recalcular clave de deduplicación si cambiaron empresa, puesto, ubicación o plataforma
+        if (recalcularClave) {
+            String claveDeduplicacion = construirClaveDeduplicacion(
+                    candidatura.getEmpresa().getNombreNormalizado(),
+                    candidatura.getPuesto(),
+                    candidatura.getUbicacion(),
+                    candidatura.getPlataforma()
+            );
+            candidatura.setClaveDeduplicacion(claveDeduplicacion);
+        }
+
+        // 10. Regla crítica: Si estadoActual cambia, registrar nuevo HistorialEstado
+        if (request.estadoActual() != null && request.estadoActual() != candidatura.getEstadoActual()) {
+            EstadoCandidatura estadoViejo = candidatura.getEstadoActual();
+            Instant ahora = Instant.now();
+
+            HistorialEstado nuevoHistorial = HistorialEstado.builder()
+                    .candidatura(candidatura)
+                    .estadoAnterior(estadoViejo)
+                    .estadoNuevo(request.estadoActual())
+                    .fechaEvento(ahora)
+                    .origen(OrigenEvento.MANUAL)
+                    .build();
+
+            candidatura.addHistorial(nuevoHistorial);
+            candidatura.setEstadoActual(request.estadoActual());
+            huboCambios = true;
+        }
+
+        // 11. Actualizar fechaUltimoCambio si hubo algún cambio
+        if (huboCambios) {
+            candidatura.setFechaUltimoCambio(Instant.now());
+        }
+
+        Candidatura guardada = candidaturaRepository.save(candidatura);
+        log.info("Candidatura ID {} actualizada exitosamente para usuario ID {}", guardada.getId(), usuarioId);
+
+        return CandidaturaResponse.fromEntity(guardada);
     }
 
     /**

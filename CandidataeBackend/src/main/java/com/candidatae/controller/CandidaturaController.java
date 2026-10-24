@@ -4,6 +4,7 @@ import com.candidatae.domain.EstadoCandidatura;
 import com.candidatae.dto.CandidaturaCreateRequest;
 import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
+import com.candidatae.dto.CandidaturaUpdateRequest;
 import com.candidatae.service.CandidaturaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +15,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -72,5 +74,18 @@ public class CandidaturaController {
     public ResponseEntity<CandidaturaDetailResponse> obtenerDetalle(@PathVariable Long id) {
         CandidaturaDetailResponse detalle = candidaturaService.obtenerDetalle(id);
         return ResponseEntity.ok(detalle);
+    }
+
+    /**
+     * Actualiza parcialmente los datos o el estado de una candidatura existente.
+     */
+    @Operation(summary = "Editar candidatura", description = "Actualiza parcialmente los campos proporcionados de una candidatura. Si cambia el estado, se registra en el historial")
+    @PatchMapping("/{id}")
+    public ResponseEntity<CandidaturaResponse> actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody CandidaturaUpdateRequest request
+    ) {
+        CandidaturaResponse response = candidaturaService.actualizar(id, request);
+        return ResponseEntity.ok(response);
     }
 }

@@ -12,6 +12,7 @@ import com.candidatae.domain.Plataforma;
 import com.candidatae.domain.Usuario;
 import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
+import com.candidatae.dto.CandidaturaUpdateRequest;
 import com.candidatae.exception.ApiException;
 import com.candidatae.repository.CandidaturaRepository;
 import com.candidatae.repository.EmpresaRepository;
@@ -209,5 +210,176 @@ class CandidaturaServiceTest {
         ApiException ex = assertThrows(ApiException.class, () -> candidaturaService.obtenerDetalle(candidaturaId));
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
         assertEquals("Candidatura no encontrada", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("actualizar: al cambiar de estado añade automáticamente una nueva fila en el historial")
+    void testActualizarCambioEstadoRegistraHistorial() {
+        Long usuarioId = 10L;
+        Long candidaturaId = 100L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        Empresa empresa = Empresa.builder().id(1L).nombre("Google").nombreNormalizado("google").build();
+
+        Instant t0 = Instant.parse("2026-10-20T10:00:00Z");
+        HistorialEstado hInicial = HistorialEstado.builder()
+                .id(1L)
+                .estadoAnterior(null)
+                .estadoNuevo(EstadoCandidatura.ENVIADA)
+                .fechaEvento(t0)
+                .origen(OrigenEvento.MANUAL)
+                .build();
+
+        Candidatura candidatura = Candidatura.builder()
+                .id(candidaturaId)
+                .usuario(usuario)
+                .empresa(empresa)
+                .puesto("Backend Developer")
+                .ubicacion("Madrid")
+                .modalidad(Modalidad.REMOTO)
+                .fechaSolicitud(LocalDate.now())
+                .estadoActual(EstadoCandidatura.ENVIADA)
+                .fechaUltimoCambio(t0)
+                .historiales(new ArrayList<>(List.of(hInicial)))
+                .build();
+
+        when(candidaturaRepository.findByIdAndUsuarioId(candidaturaId, usuarioId))
+                .thenReturn(Optional.of(candidatura));
+        when(candidaturaRepository.save(any(Candidatura.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CandidaturaUpdateRequest updateRequest = new CandidaturaUpdateRequest(
+                null, null, null, null, null, null, null, null, EstadoCandidatura.ENTREVISTA
+        );
+
+        CandidaturaResponse response = candidaturaService.actualizar(candidaturaId, updateRequest);
+
+        assertNotNull(response);
+        assertEquals(EstadoCandidatura.ENTREVISTA, response.estadoActual());
+        assertEquals(EstadoCandidatura.ENTREVISTA, candidatura.getEstadoActual());
+
+        // Debe haberse añadido el segundo evento en el historial
+        assertEquals(2, candidatura.getHistoriales().size());
+        HistorialEstado nuevoHistorial = candidatura.getHistoriales().get(1);
+        assertEquals(EstadoCandidatura.ENVIADA, nuevoHistorial.getEstadoAnterior());
+        assertEquals(EstadoCandidatura.ENTREVISTA, nuevoHistorial.getEstadoNuevo());
+        assertEquals(OrigenEvento.MANUAL, nuevoHistorial.getOrigen());
+        assertNotNull(nuevoHistorial.getFechaEvento());
+        assertTrue(candidatura.getFechaUltimoCambio().isAfter(t0));
+    }
+
+    @Test
+    @DisplayName("actualizar: al editar un campo sin cambiar el estado NO se duplica el historial")
+    void testActualizarSinCambioEstadoNoModificaHistorial() {
+        Long usuarioId = 10L;
+        Long candidaturaId = 100L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        Empresa empresa = Empresa.builder().id(1L).nombre("Google").nombreNormalizado("google").build();
+
+        Instant t0 = Instant.parse("2026-10-20T10:00:00Z");
+        HistorialEstado hInicial = HistorialEstado.builder()
+                .id(1L)
+                .estadoAnterior(null)
+                .estadoNuevo(EstadoCandidatura.ENVIADA)
+                .fechaEvento(t0)
+                .origen(OrigenEvento.MANUAL)
+                .build();
+
+        Candidatura candidatura = Candidatura.builder()
+                .id(candidaturaId)
+                .usuario(usuario)
+                .empresa(empresa)
+                .puesto("Backend Developer")
+                .ubicacion("Madrid")
+                .modalidad(Modalidad.REMOTO)
+                .salarioTexto("35.000€")
+                .fechaSolicitud(LocalDate.now())
+                .estadoActual(EstadoCandidatura.ENVIADA)
+                .fechaUltimoCambio(t0)
+                .historiales(new ArrayList<>(List.of(hInicial)))
+                .build();
+
+        when(candidaturaRepository.findByIdAndUsuarioId(candidaturaId, usuarioId))
+                .thenReturn(Optional.of(candidatura));
+        when(candidaturaRepository.save(any(Candidatura.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Actualizamos solo salarioTexto y mantenemos el mismo estadoActual
+        CandidaturaUpdateRequest updateRequest = new CandidaturaUpdateRequest(
+                null, null, null, null, null, "50.000€", null, null, EstadoCandidatura.ENVIADA
+        );
+
+        CandidaturaResponse response = candidaturaService.actualizar(candidaturaId, updateRequest);
+
+        assertNotNull(response);
+        assertEquals("50.000€", response.salarioTexto());
+        assertEquals("50.000€", candidatura.getSalarioTexto());
+        assertEquals(EstadoCandidatura.ENVIADA, response.estadoActual());
+
+        // El historial NO debe tener filas nuevas
+        assertEquals(1, candidatura.getHistoriales().size());
+    }
+
+    @Test
+    @DisplayName("actualizar: lanza ApiException 404 si la candidatura no existe o no pertenece al usuario")
+    void testActualizarNoEncontradoLanza404() {
+        Long usuarioId = 10L;
+        Long candidaturaId = 999L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+        when(candidaturaRepository.findByIdAndUsuarioId(candidaturaId, usuarioId)).thenReturn(Optional.empty());
+
+        CandidaturaUpdateRequest request = new CandidaturaUpdateRequest(
+                null, null, null, null, null, null, null, null, EstadoCandidatura.OFERTA
+        );
+
+        ApiException ex = assertThrows(ApiException.class, () -> candidaturaService.actualizar(candidaturaId, request));
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+        assertEquals("Candidatura no encontrada", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("actualizar: al cambiar empresa o puesto se recalcula la clave de deduplicación")
+    void testActualizarEmpresaYPuestoRecalculaClaveDeduplicacion() {
+        Long usuarioId = 10L;
+        Long candidaturaId = 100L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        Empresa empresaVieja = Empresa.builder().id(1L).nombre("Startup").nombreNormalizado("startup").build();
+        Empresa empresaNueva = Empresa.builder().id(2L).nombre("BigTech S.L.").nombreNormalizado("bigtech").build();
+
+        Candidatura candidatura = Candidatura.builder()
+                .id(candidaturaId)
+                .usuario(usuario)
+                .empresa(empresaVieja)
+                .puesto("Junior Dev")
+                .ubicacion("Madrid")
+                .fechaSolicitud(LocalDate.now())
+                .estadoActual(EstadoCandidatura.ENVIADA)
+                .claveDeduplicacion("startup:junior-dev:madrid")
+                .fechaUltimoCambio(Instant.now())
+                .build();
+
+        when(candidaturaRepository.findByIdAndUsuarioId(candidaturaId, usuarioId))
+                .thenReturn(Optional.of(candidatura));
+        when(empresaRepository.findByNombreNormalizado("bigtech"))
+                .thenReturn(Optional.of(empresaNueva));
+        when(candidaturaRepository.save(any(Candidatura.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CandidaturaUpdateRequest request = new CandidaturaUpdateRequest(
+                "BigTech S.L.", null, "Senior Tech Lead", "Barcelona", null, null, null, null, null
+        );
+
+        CandidaturaResponse response = candidaturaService.actualizar(candidaturaId, request);
+
+        assertNotNull(response);
+        assertEquals("BigTech S.L.", response.empresaNombre());
+        assertEquals("Senior Tech Lead", response.puesto());
+        assertEquals("Barcelona", response.ubicacion());
+        assertEquals("bigtech:senior-tech-lead:barcelona", candidatura.getClaveDeduplicacion());
     }
 }
