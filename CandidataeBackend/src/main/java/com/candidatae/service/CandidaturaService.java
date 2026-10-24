@@ -8,6 +8,7 @@ import com.candidatae.domain.OrigenEvento;
 import com.candidatae.domain.Plataforma;
 import com.candidatae.domain.Usuario;
 import com.candidatae.dto.CandidaturaCreateRequest;
+import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
 import com.candidatae.exception.ApiException;
 import com.candidatae.repository.CandidaturaRepository;
@@ -196,6 +197,26 @@ public class CandidaturaService {
         return candidaturas.stream()
                 .map(CandidaturaResponse::fromEntity)
                 .toList();
+    }
+
+    /**
+     * Obtiene el detalle de una candidatura por su ID asegurando que pertenece al usuario autenticado.
+     */
+    @Transactional(readOnly = true)
+    public CandidaturaDetailResponse obtenerDetalle(Long id) {
+        Long usuarioId = currentUserProvider.requireUserId();
+        return obtenerDetalleParaUsuario(id, usuarioId);
+    }
+
+    /**
+     * Busca y devuelve el detalle de una candidatura para un usuario especifico.
+     */
+    @Transactional(readOnly = true)
+    public CandidaturaDetailResponse obtenerDetalleParaUsuario(Long id, Long usuarioId) {
+        Candidatura candidatura = candidaturaRepository.findByIdAndUsuarioId(id, usuarioId)
+                .orElseThrow(() -> ApiException.notFound("Candidatura no encontrada"));
+
+        return CandidaturaDetailResponse.fromEntity(candidatura);
     }
 
     /**

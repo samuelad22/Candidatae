@@ -2,6 +2,7 @@ package com.candidatae.controller;
 
 import com.candidatae.domain.EstadoCandidatura;
 import com.candidatae.dto.CandidaturaCreateRequest;
+import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
 import com.candidatae.service.CandidaturaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +14,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -60,5 +62,15 @@ public class CandidaturaController {
     ) {
         List<CandidaturaResponse> candidaturas = candidaturaService.listar(platform, status, company, from, to, search);
         return ResponseEntity.ok(candidaturas);
+    }
+
+    /**
+     * Obtiene el detalle completo de una candidatura por su ID.
+     */
+    @Operation(summary = "Ver detalle de candidatura", description = "Devuelve los datos de una candidatura junto con su historial de estados, notas y contactos")
+    @GetMapping("/{id}")
+    public ResponseEntity<CandidaturaDetailResponse> obtenerDetalle(@PathVariable Long id) {
+        CandidaturaDetailResponse detalle = candidaturaService.obtenerDetalle(id);
+        return ResponseEntity.ok(detalle);
     }
 }
