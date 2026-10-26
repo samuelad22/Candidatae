@@ -5,6 +5,7 @@ import com.candidatae.domain.EstadoCandidatura;
 import com.candidatae.domain.Modalidad;
 import com.candidatae.domain.OrigenEvento;
 import com.candidatae.domain.Usuario;
+import com.candidatae.dto.CandidaturaCreateRequest;
 import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
 import com.candidatae.dto.CandidaturaUpdateRequest;
@@ -45,6 +46,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -114,6 +116,78 @@ class CandidaturaControllerTest {
                 Instant.parse("2026-10-24T12:00:00Z"),
                 "clave-dedup-1"
         );
+    }
+
+    @Test
+    @DisplayName("POST /api/applications: da de alta una candidatura y devuelve 201 Created")
+    void testCrearCandidaturaExitosoDevuelve201() throws Exception {
+        CandidaturaResponse response = crearEjemploResponse(100L, "Google España S.L.", "Backend Engineer", EstadoCandidatura.ENVIADA);
+        when(candidaturaService.crear(any(CandidaturaCreateRequest.class))).thenReturn(response);
+
+        String jsonBody = """
+                {
+                    "empresa": "Google España S.L.",
+                    "puesto": "Backend Engineer",
+                    "plataformaCodigo": "GLASSDOOR",
+                    "ubicacion": "Madrid",
+                    "modalidad": "REMOTO",
+                    "salarioTexto": "45.000€",
+                    "enlaceOferta": "https://glassdoor.com/job/123",
+                    "fechaSolicitud": "2026-10-25"
+                }
+                """;
+
+        mockMvc.perform(post("/api/applications")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isCreated())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(100))
+                .andExpect(jsonPath("$.empresaNombre").value("Google España S.L."))
+                .andExpect(jsonPath("$.puesto").value("Backend Engineer"))
+                .andExpect(jsonPath("$.estadoActual").value("ENVIADA"));
+
+        verify(candidaturaService).crear(any(CandidaturaCreateRequest.class));
+    }
+
+    @Test
+    @DisplayName("POST /api/applications: devuelve 400 Bad Request si faltan campos obligatorios como puesto o empresa")
+    void testCrearCandidaturaCamposObligatoriosFaltantesDevuelve400() throws Exception {
+        String jsonInvalido = """
+                {
+                    "empresa": "",
+                    "puesto": "   ",
+                    "fechaSolicitud": null
+                }
+                """;
+
+        mockMvc.perform(post("/api/applications")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonInvalido))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.fieldErrors.empresa").exists())
+                .andExpect(jsonPath("$.fieldErrors.puesto").exists());
+    }
+
+    @Test
+    @DisplayName("POST /api/applications: devuelve 401 si no está autenticado")
+    void testCrearSinAutenticacionDevuelve401() throws Exception {
+        String jsonBody = """
+                {
+                    "empresa": "Google",
+                    "puesto": "Backend",
+                    "fechaSolicitud": "2026-10-25"
+                }
+                """;
+
+        mockMvc.perform(post("/api/applications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -10,6 +10,7 @@ import com.candidatae.domain.Nota;
 import com.candidatae.domain.OrigenEvento;
 import com.candidatae.domain.Plataforma;
 import com.candidatae.domain.Usuario;
+import com.candidatae.dto.CandidaturaCreateRequest;
 import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
 import com.candidatae.dto.CandidaturaUpdateRequest;
@@ -66,6 +67,115 @@ class CandidaturaServiceTest {
 
     @InjectMocks
     private CandidaturaService candidaturaService;
+
+    @Test
+    @DisplayName("crear: alta exitosa con normalización de empresa, estado inicial ENVIADA, primer historial y deduplicación Glassdoor -> Indeed")
+    void testCrearCandidaturaExitosaConNormalizacionYDeduplicacionGlassdoor() {
+        Long usuarioId = 10L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
+
+        // Empresa con sufijo societario y mayúsculas que debe normalizarse
+        String empresaEntrada = "Google España S.L.";
+        String empresaNormalizada = "google españa";
+        Empresa empresaGuardada = Empresa.builder()
+                .id(1L)
+                .nombre("Google España S.L.")
+                .nombreNormalizado(empresaNormalizada)
+                .build();
+        when(empresaRepository.findByNombreNormalizado(empresaNormalizada)).thenReturn(Optional.empty());
+        when(empresaRepository.save(any(Empresa.class))).thenReturn(empresaGuardada);
+
+        // Plataforma Glassdoor que tiene como plataformaOrigen Indeed
+        Plataforma plataformaIndeed = Plataforma.builder()
+                .id(20L)
+                .codigo("INDEED")
+                .nombre("Indeed")
+                .build();
+        Plataforma plataformaGlassdoor = Plataforma.builder()
+                .id(21L)
+                .codigo("GLASSDOOR")
+                .nombre("Glassdoor")
+                .plataformaOrigen(plataformaIndeed)
+                .build();
+        when(plataformaRepository.findByCodigoIgnoreCase("GLASSDOOR")).thenReturn(Optional.of(plataformaGlassdoor));
+
+        when(candidaturaRepository.save(any(Candidatura.class))).thenAnswer(invocation -> {
+            Candidatura c = invocation.getArgument(0);
+            c.setId(100L);
+            return c;
+        });
+
+        LocalDate fechaSolicitud = LocalDate.of(2026, 10, 25);
+        CandidaturaCreateRequest request = new CandidaturaCreateRequest(
+                empresaEntrada,
+                "Backend Developer",
+                "GLASSDOOR",
+                "Madrid",
+                Modalidad.REMOTO,
+                "45.000€",
+                "https://glassdoor.com/job/123",
+                fechaSolicitud
+        );
+
+        CandidaturaResponse response = candidaturaService.crear(request);
+
+        assertNotNull(response);
+        assertEquals(100L, response.id());
+        assertEquals("Backend Developer", response.puesto());
+        assertEquals(EstadoCandidatura.ENVIADA, response.estadoActual());
+        assertEquals("GLASSDOOR", response.plataformaCodigo());
+
+        // Verificamos los datos persistidos en Candidatura y su HistorialEstado
+        ArgumentCaptor<Candidatura> candidaturaCaptor = ArgumentCaptor.forClass(Candidatura.class);
+        verify(candidaturaRepository).save(candidaturaCaptor.capture());
+
+        Candidatura guardada = candidaturaCaptor.getValue();
+        assertEquals("Google España S.L.", guardada.getEmpresa().getNombre());
+        assertEquals(EstadoCandidatura.ENVIADA, guardada.getEstadoActual());
+        // Deduplicación Glassdoor -> Indeed toma "indeed"
+        assertEquals("google-espana:backend-developer:madrid:indeed", guardada.getClaveDeduplicacion());
+
+        // Verifica que se creó el primer registro en HistorialEstado
+        assertEquals(1, guardada.getHistoriales().size());
+        HistorialEstado primerHistorial = guardada.getHistoriales().get(0);
+        assertEquals(EstadoCandidatura.ENVIADA, primerHistorial.getEstadoNuevo());
+        assertEquals(null, primerHistorial.getEstadoAnterior());
+        assertEquals(OrigenEvento.MANUAL, primerHistorial.getOrigen());
+        assertNotNull(primerHistorial.getFechaEvento());
+    }
+
+    @Test
+    @DisplayName("crear: lanza ApiException 400 Bad Request si el código de plataforma no existe")
+    void testCrearCandidaturaPlataformaInvalidaLanzaBadRequest() {
+        Long usuarioId = 10L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
+
+        Empresa empresa = Empresa.builder().id(1L).nombre("Google").nombreNormalizado("google").build();
+        when(empresaRepository.findByNombreNormalizado("google")).thenReturn(Optional.of(empresa));
+
+        when(plataformaRepository.findByCodigoIgnoreCase("INVENTADA")).thenReturn(Optional.empty());
+
+        CandidaturaCreateRequest request = new CandidaturaCreateRequest(
+                "Google",
+                "Backend Developer",
+                "INVENTADA",
+                "Madrid",
+                Modalidad.REMOTO,
+                null,
+                null,
+                LocalDate.now()
+        );
+
+        ApiException ex = assertThrows(ApiException.class, () -> candidaturaService.crear(request));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("INVENTADA"));
+    }
 
     @Test
     @DisplayName("listar: consulta con Specification ordenado por fechaUltimoCambio DESC y filtra por usuario autenticado")
