@@ -27,6 +27,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.candidatae.dto.PageResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
@@ -39,9 +44,11 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -102,6 +109,9 @@ class CandidaturaServiceTest {
                 .build();
         when(plataformaRepository.findByCodigoIgnoreCase("GLASSDOOR")).thenReturn(Optional.of(plataformaGlassdoor));
 
+        when(candidaturaRepository.existsByUsuarioIdAndClaveDeduplicacion(eq(usuarioId), any(String.class)))
+                .thenReturn(false);
+
         when(candidaturaRepository.save(any(Candidatura.class))).thenAnswer(invocation -> {
             Candidatura c = invocation.getArgument(0);
             c.setId(100L);
@@ -148,6 +158,42 @@ class CandidaturaServiceTest {
     }
 
     @Test
+    @DisplayName("crear: lanza ApiException 409 Conflict si ya existe una candidatura para la misma empresa, puesto y plataforma")
+    void testCrearCandidaturaDuplicadaLanzaConflict409() {
+        Long usuarioId = 10L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
+
+        Empresa empresa = Empresa.builder().id(1L).nombre("Google").nombreNormalizado("google").build();
+        when(empresaRepository.findByNombreNormalizado("google")).thenReturn(Optional.of(empresa));
+
+        Plataforma plataforma = Plataforma.builder().id(2L).codigo("LINKEDIN").nombre("LinkedIn").build();
+        when(plataformaRepository.findByCodigoIgnoreCase("LINKEDIN")).thenReturn(Optional.of(plataforma));
+
+        when(candidaturaRepository.existsByUsuarioIdAndClaveDeduplicacion(eq(usuarioId), any(String.class)))
+                .thenReturn(true);
+
+        CandidaturaCreateRequest request = new CandidaturaCreateRequest(
+                "Google",
+                "Backend Developer",
+                "LINKEDIN",
+                "Madrid",
+                Modalidad.REMOTO,
+                null,
+                null,
+                LocalDate.now()
+        );
+
+        ApiException ex = assertThrows(ApiException.class, () -> candidaturaService.crear(request));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertEquals("Ya tienes registrada una candidatura para este puesto, empresa y plataforma", ex.getMessage());
+
+        verify(candidaturaRepository, never()).save(any(Candidatura.class));
+    }
+
+    @Test
     @DisplayName("crear: lanza ApiException 400 Bad Request si el código de plataforma no existe")
     void testCrearCandidaturaPlataformaInvalidaLanzaBadRequest() {
         Long usuarioId = 10L;
@@ -178,7 +224,7 @@ class CandidaturaServiceTest {
     }
 
     @Test
-    @DisplayName("listar: consulta con Specification ordenado por fechaUltimoCambio DESC y filtra por usuario autenticado")
+    @DisplayName("listar: consulta con Specification y Pageable ordenado por fechaUltimoCambio DESC y filtra por usuario autenticado")
     void testListarCandidaturas() {
         Long usuarioId = 10L;
         when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
@@ -200,31 +246,115 @@ class CandidaturaServiceTest {
                 .fechaUltimoCambio(Instant.now())
                 .build();
 
-        when(candidaturaRepository.findAll(any(Specification.class), any(Sort.class)))
-                .thenReturn(List.of(candidatura));
+        Page<Candidatura> pageMock = new PageImpl<>(List.of(candidatura), PageRequest.of(0, 20), 1);
 
-        List<CandidaturaResponse> resultado = candidaturaService.listar(
+        when(plataformaRepository.findByCodigoIgnoreCase("LINKEDIN")).thenReturn(Optional.of(plataforma));
+        when(candidaturaRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(pageMock);
+
+        PageResponse<CandidaturaResponse> resultado = candidaturaService.listar(
                 "LINKEDIN",
-                EstadoCandidatura.ENVIADA,
+                "ENVIADA",
                 "Google",
                 LocalDate.now().minusDays(7),
                 LocalDate.now(),
-                "Backend"
+                "Backend",
+                0,
+                20
         );
 
         assertNotNull(resultado);
-        assertEquals(1, resultado.size());
-        assertEquals(100L, resultado.get(0).id());
-        assertEquals("Google", resultado.get(0).empresaNombre());
-        assertEquals("LINKEDIN", resultado.get(0).plataformaCodigo());
+        assertEquals(1, resultado.content().size());
+        assertEquals(0, resultado.page());
+        assertEquals(20, resultado.size());
+        assertEquals(1, resultado.totalElements());
+        assertEquals(1, resultado.totalPages());
+        assertTrue(resultado.last());
+        assertEquals(100L, resultado.content().get(0).id());
+        assertEquals("Google", resultado.content().get(0).empresaNombre());
+        assertEquals("LINKEDIN", resultado.content().get(0).plataformaCodigo());
 
-        ArgumentCaptor<Sort> sortCaptor = ArgumentCaptor.forClass(Sort.class);
-        verify(candidaturaRepository).findAll(any(Specification.class), sortCaptor.capture());
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(candidaturaRepository).findAll(any(Specification.class), pageableCaptor.capture());
 
-        Sort sort = sortCaptor.getValue();
-        Sort.Order order = sort.getOrderFor("fechaUltimoCambio");
+        Pageable pageable = pageableCaptor.getValue();
+        assertEquals(0, pageable.getPageNumber());
+        assertEquals(20, pageable.getPageSize());
+        Sort.Order order = pageable.getSort().getOrderFor("fechaUltimoCambio");
         assertNotNull(order);
         assertEquals(Sort.Direction.DESC, order.getDirection());
+    }
+
+    @Test
+    @DisplayName("listar: lanza ApiException 400 Bad Request si la paginación no es válida")
+    void testListarPaginacionInvalidaLanzaBadRequest400() {
+        Long usuarioId = 10L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        // Página negativa
+        ApiException ex1 = assertThrows(ApiException.class, () -> candidaturaService.listar(
+                null, null, null, null, null, null, -1, 20
+        ));
+        assertEquals(HttpStatus.BAD_REQUEST, ex1.getStatus());
+        assertEquals("El número de página no puede ser negativo", ex1.getMessage());
+
+        // Tamaño menor que 1
+        ApiException ex2 = assertThrows(ApiException.class, () -> candidaturaService.listar(
+                null, null, null, null, null, null, 0, 0
+        ));
+        assertEquals(HttpStatus.BAD_REQUEST, ex2.getStatus());
+        assertEquals("El tamaño de página debe estar entre 1 y 100", ex2.getMessage());
+
+        // Tamaño mayor que 100
+        ApiException ex3 = assertThrows(ApiException.class, () -> candidaturaService.listar(
+                null, null, null, null, null, null, 0, 101
+        ));
+        assertEquals(HttpStatus.BAD_REQUEST, ex3.getStatus());
+        assertEquals("El tamaño de página debe estar entre 1 y 100", ex3.getMessage());
+    }
+
+    @Test
+    @DisplayName("listar: lanza ApiException 400 Bad Request si el status no es válido")
+    void testListarStatusInvalidoLanzaBadRequest400() {
+        Long usuarioId = 10L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        ApiException ex = assertThrows(ApiException.class, () -> candidaturaService.listar(
+                null,
+                "ENVIAD",
+                null,
+                null,
+                null,
+                null,
+                0,
+                20
+        ));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Valor 'ENVIAD' no válido para 'status'"));
+        assertTrue(ex.getMessage().contains("Valores permitidos: [ENVIADA, EN_PROCESO, ENTREVISTA, OFERTA, RECHAZADA, DESCARTADA]"));
+    }
+
+    @Test
+    @DisplayName("listar: lanza ApiException 400 Bad Request si la plataforma no existe")
+    void testListarPlataformaInvalidaLanzaBadRequest400() {
+        Long usuarioId = 10L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+        when(plataformaRepository.findByCodigoIgnoreCase("INVENTADA")).thenReturn(Optional.empty());
+
+        ApiException ex = assertThrows(ApiException.class, () -> candidaturaService.listar(
+                "INVENTADA",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                20
+        ));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("La plataforma 'INVENTADA' no es válida"));
     }
 
     @Test
@@ -492,6 +622,107 @@ class CandidaturaServiceTest {
         assertEquals("Senior Tech Lead", response.puesto());
         assertEquals("Barcelona", response.ubicacion());
         assertEquals("bigtech:senior-tech-lead:barcelona", candidatura.getClaveDeduplicacion());
+    }
+
+    @Test
+    @DisplayName("actualizar: lanza ApiException 409 Conflict si al recalcular clave ya existe otra candidatura del usuario")
+    void testActualizarEmpresaYPuestoDuplicadoLanzaConflict409() {
+        Long usuarioId = 10L;
+        Long candidaturaId = 100L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        Empresa empresaVieja = Empresa.builder().id(1L).nombre("Startup").nombreNormalizado("startup").build();
+        Empresa empresaNueva = Empresa.builder().id(2L).nombre("BigTech S.L.").nombreNormalizado("bigtech").build();
+
+        Candidatura candidatura = Candidatura.builder()
+                .id(candidaturaId)
+                .usuario(usuario)
+                .empresa(empresaVieja)
+                .puesto("Junior Dev")
+                .ubicacion("Madrid")
+                .fechaSolicitud(LocalDate.now())
+                .estadoActual(EstadoCandidatura.ENVIADA)
+                .claveDeduplicacion("startup:junior-dev:madrid")
+                .fechaUltimoCambio(Instant.now())
+                .build();
+
+        when(candidaturaRepository.findByIdAndUsuarioId(candidaturaId, usuarioId))
+                .thenReturn(Optional.of(candidatura));
+        when(empresaRepository.findByNombreNormalizado("bigtech"))
+                .thenReturn(Optional.of(empresaNueva));
+        when(candidaturaRepository.existsByUsuarioIdAndClaveDeduplicacion(eq(usuarioId), eq("bigtech:senior-tech-lead:barcelona")))
+                .thenReturn(true);
+
+        CandidaturaUpdateRequest request = new CandidaturaUpdateRequest(
+                "BigTech S.L.", null, "Senior Tech Lead", "Barcelona", null, null, null, null, null
+        );
+
+        ApiException ex = assertThrows(ApiException.class, () -> candidaturaService.actualizar(candidaturaId, request));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertEquals("Ya tienes registrada otra candidatura para este puesto, empresa y plataforma", ex.getMessage());
+
+        verify(candidaturaRepository, never()).save(any(Candidatura.class));
+    }
+
+    @Test
+    @DisplayName("actualizar: vacía campos opcionales si vienen como cadena vacía o en blanco")
+    void testActualizarVaciarCamposOpcionalesConCadenaVacia() {
+        Long usuarioId = 10L;
+        Long candidaturaId = 100L;
+        when(currentUserProvider.requireUserId()).thenReturn(usuarioId);
+
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        Empresa empresa = Empresa.builder().id(1L).nombre("Google").nombreNormalizado("google").build();
+        Plataforma plataforma = Plataforma.builder().id(2L).codigo("LINKEDIN").nombre("LinkedIn").build();
+
+        Candidatura candidatura = Candidatura.builder()
+                .id(candidaturaId)
+                .usuario(usuario)
+                .empresa(empresa)
+                .plataforma(plataforma)
+                .puesto("Backend Developer")
+                .ubicacion("Madrid")
+                .salarioTexto("40.000€")
+                .enlaceOferta("https://linkedin.com/jobs/123")
+                .modalidad(Modalidad.HIBRIDO)
+                .fechaSolicitud(LocalDate.now())
+                .estadoActual(EstadoCandidatura.ENVIADA)
+                .claveDeduplicacion("google:backend-developer:madrid:linkedin")
+                .fechaUltimoCambio(Instant.now())
+                .build();
+
+        when(candidaturaRepository.findByIdAndUsuarioId(candidaturaId, usuarioId))
+                .thenReturn(Optional.of(candidatura));
+        when(candidaturaRepository.save(any(Candidatura.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Enviamos cadenas vacías o en blanco en los campos opcionales
+        CandidaturaUpdateRequest request = new CandidaturaUpdateRequest(
+                null,
+                "   ",  // vaciar plataforma
+                null,
+                "",     // vaciar ubicacion
+                null,
+                " ",    // vaciar salarioTexto
+                "",     // vaciar enlaceOferta
+                null,
+                null
+        );
+
+        CandidaturaResponse response = candidaturaService.actualizar(candidaturaId, request);
+
+        assertNotNull(response);
+        assertNull(response.plataformaCodigo());
+        assertNull(response.ubicacion());
+        assertNull(response.salarioTexto());
+        assertNull(response.enlaceOferta());
+        assertNull(candidatura.getPlataforma());
+        assertNull(candidatura.getUbicacion());
+        assertNull(candidatura.getSalarioTexto());
+        assertNull(candidatura.getEnlaceOferta());
+        // Se recalculó la deduplicación al cambiar plataforma y ubicación
+        assertEquals("google:backend-developer:sin-ubicacion", candidatura.getClaveDeduplicacion());
     }
 
     @Test

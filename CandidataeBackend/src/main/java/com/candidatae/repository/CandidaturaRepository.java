@@ -2,6 +2,10 @@ package com.candidatae.repository;
 
 import com.candidatae.domain.Candidatura;
 import com.candidatae.domain.EstadoCandidatura;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
@@ -25,9 +29,16 @@ public interface CandidaturaRepository extends JpaRepository<Candidatura, Long>,
     boolean existsByIdAndUsuarioId(Long id, Long usuarioId);
 
     /**
-     * Busca una candidatura del usuario por su clave de deduplicación.
+     * Comprueba si el usuario ya tiene registrada una candidatura con esa clave de deduplicación.
      */
-    Optional<Candidatura> findByUsuarioIdAndClaveDeduplicacion(Long usuarioId, String claveDeduplicacion);
+    boolean existsByUsuarioIdAndClaveDeduplicacion(Long usuarioId, String claveDeduplicacion);
+
+    /**
+     * Busca candidaturas de forma paginada según los criterios de filtrado.
+     */
+    @Override
+    @EntityGraph(attributePaths = {"empresa", "plataforma"})
+    Page<Candidatura> findAll(Specification<Candidatura> spec, Pageable pageable);
 
     /**
      * Cuenta el total de candidaturas de un usuario.

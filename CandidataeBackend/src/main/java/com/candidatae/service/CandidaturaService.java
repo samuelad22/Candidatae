@@ -11,6 +11,7 @@ import com.candidatae.dto.CandidaturaCreateRequest;
 import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
 import com.candidatae.dto.CandidaturaUpdateRequest;
+import com.candidatae.dto.PageResponse;
 import com.candidatae.exception.ApiException;
 import com.candidatae.repository.CandidaturaRepository;
 import com.candidatae.repository.EmpresaRepository;
@@ -20,6 +21,9 @@ import com.candidatae.security.CurrentUserProvider;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -82,6 +86,11 @@ public class CandidaturaService {
                 plataforma
         );
 
+        // Comprobar si el usuario ya registró esa misma oferta
+        if (candidaturaRepository.existsByUsuarioIdAndClaveDeduplicacion(usuarioId, claveDeduplicacion)) {
+            throw ApiException.conflict("Ya tienes registrada una candidatura para este puesto, empresa y plataforma");
+        }
+
         // 4. Crear la entidad Candidatura con estado inicial ENVIADA
         Instant ahora = Instant.now();
         Candidatura candidatura = Candidatura.builder()
@@ -117,34 +126,63 @@ public class CandidaturaService {
     }
 
     /**
-     * Lista y filtra las candidaturas del usuario actualmente autenticado.
+     * Lista y filtra las candidaturas del usuario actualmente autenticado con paginación.
      */
     @Transactional(readOnly = true)
-    public List<CandidaturaResponse> listar(
+    public PageResponse<CandidaturaResponse> listar(
             String platform,
-            EstadoCandidatura status,
+            String status,
             String company,
             LocalDate from,
             LocalDate to,
-            String search
+            String search,
+            int page,
+            int size
     ) {
         Long usuarioId = currentUserProvider.requireUserId();
-        return listarParaUsuario(usuarioId, platform, status, company, from, to, search);
+        return listarParaUsuario(usuarioId, platform, status, company, from, to, search, page, size);
     }
 
     /**
-     * Obtiene el listado de candidaturas filtrado y ordenado para un usuario específico.
+     * Obtiene el listado paginado de candidaturas filtrado y ordenado para un usuario específico.
      */
     @Transactional(readOnly = true)
-    public List<CandidaturaResponse> listarParaUsuario(
+    public PageResponse<CandidaturaResponse> listarParaUsuario(
             Long usuarioId,
             String platform,
-            EstadoCandidatura status,
+            String status,
             String company,
             LocalDate from,
             LocalDate to,
-            String search
+            String search,
+            int page,
+            int size
     ) {
+        // Validación de paginación
+        if (page < 0) {
+            throw ApiException.badRequest("El número de página no puede ser negativo");
+        }
+        if (size < 1 || size > 100) {
+            throw ApiException.badRequest("El tamaño de página debe estar entre 1 y 100");
+        }
+
+        // 1. Validación de plataforma si viene informada
+        if (platform != null && !platform.isBlank()) {
+            plataformaRepository.findByCodigoIgnoreCase(platform.trim())
+                    .orElseThrow(() -> ApiException.badRequest("La plataforma '" + platform + "' no es válida"));
+        }
+
+        // 2. Validación y conversión de estado si viene informado
+        EstadoCandidatura estadoEnum = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                estadoEnum = EstadoCandidatura.fromString(status);
+            } catch (IllegalArgumentException e) {
+                throw ApiException.badRequest("Valor '" + status + "' no válido para 'status'. Valores permitidos: [ENVIADA, EN_PROCESO, ENTREVISTA, OFERTA, RECHAZADA, DESCARTADA]");
+            }
+        }
+        final EstadoCandidatura estadoFiltro = estadoEnum;
+
         Specification<Candidatura> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -160,8 +198,8 @@ public class CandidaturaService {
             }
 
             // 3. Filtro opcional por estado actual de la candidatura
-            if (status != null) {
-                predicates.add(cb.equal(root.get("estadoActual"), status));
+            if (estadoFiltro != null) {
+                predicates.add(cb.equal(root.get("estadoActual"), estadoFiltro));
             }
 
             // 4. Filtro opcional por nombre de empresa (búsqueda parcial insensible a mayúsculas)
@@ -191,13 +229,11 @@ public class CandidaturaService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        // Orden descendente por fecha de último cambio
-        Sort sort = Sort.by(Sort.Direction.DESC, "fechaUltimoCambio");
-        List<Candidatura> candidaturas = candidaturaRepository.findAll(spec, sort);
+        // Orden descendente por fecha de último cambio y paginación
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "fechaUltimoCambio"));
+        Page<Candidatura> candidaturasPage = candidaturaRepository.findAll(spec, pageable);
 
-        return candidaturas.stream()
-                .map(CandidaturaResponse::fromEntity)
-                .toList();
+        return PageResponse.from(candidaturasPage.map(CandidaturaResponse::fromEntity));
     }
 
     /**
@@ -328,6 +364,10 @@ public class CandidaturaService {
                     candidatura.getUbicacion(),
                     candidatura.getPlataforma()
             );
+            if (!claveDeduplicacion.equals(candidatura.getClaveDeduplicacion())
+                    && candidaturaRepository.existsByUsuarioIdAndClaveDeduplicacion(usuarioId, claveDeduplicacion)) {
+                throw ApiException.conflict("Ya tienes registrada otra candidatura para este puesto, empresa y plataforma");
+            }
             candidatura.setClaveDeduplicacion(claveDeduplicacion);
         }
 

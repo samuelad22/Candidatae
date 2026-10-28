@@ -9,6 +9,7 @@ import com.candidatae.dto.CandidaturaCreateRequest;
 import com.candidatae.dto.CandidaturaDetailResponse;
 import com.candidatae.dto.CandidaturaResponse;
 import com.candidatae.dto.CandidaturaUpdateRequest;
+import com.candidatae.dto.PageResponse;
 import com.candidatae.dto.ContactoResponse;
 import com.candidatae.dto.HistorialEstadoResponse;
 import com.candidatae.dto.NotaResponse;
@@ -37,6 +38,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -45,8 +47,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -174,6 +176,30 @@ class CandidaturaControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/applications: devuelve 409 Conflict si la candidatura ya existe")
+    void testCrearCandidaturaDuplicadaDevuelve409() throws Exception {
+        when(candidaturaService.crear(any(CandidaturaCreateRequest.class)))
+                .thenThrow(ApiException.conflict("Ya tienes registrada una candidatura para este puesto, empresa y plataforma"));
+
+        String jsonBody = """
+                {
+                    "empresa": "Google",
+                    "puesto": "Backend Engineer",
+                    "fechaSolicitud": "2026-10-25"
+                }
+                """;
+
+        mockMvc.perform(post("/api/applications")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value("Ya tienes registrada una candidatura para este puesto, empresa y plataforma"));
+    }
+
+    @Test
     @DisplayName("POST /api/applications: devuelve 401 si no está autenticado")
     void testCrearSinAutenticacionDevuelve401() throws Exception {
         String jsonBody = """
@@ -191,13 +217,22 @@ class CandidaturaControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/applications: devuelve 200 con la lista de candidaturas y respeta los filtros")
+    @DisplayName("GET /api/applications: devuelve 200 con la lista de candidaturas paginada y respeta los filtros")
     void testListarCandidaturasConFiltros() throws Exception {
         LocalDate from = LocalDate.of(2026, 10, 1);
         LocalDate to = LocalDate.of(2026, 10, 31);
 
-        when(candidaturaService.listar("LINKEDIN", EstadoCandidatura.ENVIADA, "Google", from, to, "Backend"))
-                .thenReturn(List.of(crearEjemploResponse(1L, "Google", "Backend Engineer", EstadoCandidatura.ENVIADA)));
+        PageResponse<CandidaturaResponse> pageResponse = new PageResponse<>(
+                List.of(crearEjemploResponse(1L, "Google", "Backend Engineer", EstadoCandidatura.ENVIADA)),
+                0,
+                20,
+                1L,
+                1,
+                true
+        );
+
+        when(candidaturaService.listar("LINKEDIN", "ENVIADA", "Google", from, to, "Backend", 0, 20))
+                .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/applications")
                         .header("Authorization", TOKEN)
@@ -206,17 +241,54 @@ class CandidaturaControllerTest {
                         .param("company", "Google")
                         .param("from", "2026-10-01")
                         .param("to", "2026-10-31")
-                        .param("search", "Backend"))
+                        .param("search", "Backend")
+                        .param("page", "0")
+                        .param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].empresaNombre").value("Google"))
-                .andExpect(jsonPath("$[0].puesto").value("Backend Engineer"))
-                .andExpect(jsonPath("$[0].estadoActual").value("ENVIADA"))
-                .andExpect(jsonPath("$[0].plataformaCodigo").value("LINKEDIN"));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.last").value(true))
+                .andExpect(jsonPath("$.content[0].id").value(1))
+                .andExpect(jsonPath("$.content[0].empresaNombre").value("Google"))
+                .andExpect(jsonPath("$.content[0].puesto").value("Backend Engineer"))
+                .andExpect(jsonPath("$.content[0].estadoActual").value("ENVIADA"))
+                .andExpect(jsonPath("$.content[0].plataformaCodigo").value("LINKEDIN"));
 
-        verify(candidaturaService).listar("LINKEDIN", EstadoCandidatura.ENVIADA, "Google", from, to, "Backend");
+        verify(candidaturaService).listar("LINKEDIN", "ENVIADA", "Google", from, to, "Backend", 0, 20);
+    }
+
+    @Test
+    @DisplayName("GET /api/applications: devuelve 400 Bad Request si el filtro status es erróneo")
+    void testListarStatusInvalidoDevuelve400() throws Exception {
+        when(candidaturaService.listar(null, "ENVIAD", null, null, null, null, 0, 20))
+                .thenThrow(ApiException.badRequest("Valor 'ENVIAD' no válido para 'status'. Valores permitidos: [ENVIADA, EN_PROCESO, ENTREVISTA, OFERTA, RECHAZADA, DESCARTADA]"));
+
+        mockMvc.perform(get("/api/applications")
+                        .header("Authorization", TOKEN)
+                        .param("status", "ENVIAD"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message", containsString("Valor 'ENVIAD' no válido para 'status'")));
+    }
+
+    @Test
+    @DisplayName("GET /api/applications: devuelve 400 Bad Request si la paginación es inválida")
+    void testListarPaginacionInvalidaDevuelve400() throws Exception {
+        when(candidaturaService.listar(null, null, null, null, null, null, -1, 20))
+                .thenThrow(ApiException.badRequest("El número de página no puede ser negativo"));
+
+        mockMvc.perform(get("/api/applications")
+                        .header("Authorization", TOKEN)
+                        .param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("El número de página no puede ser negativo"));
     }
 
     @Test
@@ -312,7 +384,7 @@ class CandidaturaControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/applications/{id}: actualiza correctamente y devuelve 200 con la candidatura")
+    @DisplayName("PUT /api/applications/{id}: actualiza correctamente y devuelve 200 con la candidatura")
     void testActualizarCandidaturaExitoso() throws Exception {
         when(candidaturaService.actualizar(eq(100L), any(CandidaturaUpdateRequest.class)))
                 .thenReturn(crearEjemploResponse(100L, "Google", "Lead Engineer", EstadoCandidatura.ENTREVISTA));
@@ -324,7 +396,7 @@ class CandidaturaControllerTest {
                 }
                 """;
 
-        mockMvc.perform(patch("/api/applications/100")
+        mockMvc.perform(put("/api/applications/100")
                         .header("Authorization", TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
@@ -339,7 +411,73 @@ class CandidaturaControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/applications/{id}: devuelve 404 si la candidatura no existe o no pertenece al usuario")
+    @DisplayName("PUT /api/applications/{id}: devuelve 400 con lista de valores permitidos si el enum es inválido")
+    void testActualizarEnumInvalidoDevuelve400ConValoresPermitidos() throws Exception {
+        String jsonBody = """
+                {
+                    "estadoActual": "envrevista"
+                }
+                """;
+
+        mockMvc.perform(put("/api/applications/100")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message", containsString("Valor 'envrevista' no válido para el campo 'estadoActual'")))
+                .andExpect(jsonPath("$.message", containsString("Valores permitidos: [ENVIADA, EN_PROCESO, ENTREVISTA, OFERTA, RECHAZADA, DESCARTADA]")));
+    }
+
+    @Test
+    @DisplayName("PUT /api/applications/{id}: acepta enum en minúsculas y devuelve 200 OK")
+    void testActualizarEnumMinusculasExitoso() throws Exception {
+        when(candidaturaService.actualizar(eq(100L), any(CandidaturaUpdateRequest.class)))
+                .thenReturn(crearEjemploResponse(100L, "Google", "Lead Engineer", EstadoCandidatura.ENTREVISTA));
+
+        String jsonBody = """
+                {
+                    "estadoActual": "entrevista"
+                }
+                """;
+
+        mockMvc.perform(put("/api/applications/100")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(100))
+                .andExpect(jsonPath("$.estadoActual").value("ENTREVISTA"));
+
+        verify(candidaturaService).actualizar(eq(100L), any(CandidaturaUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("PUT /api/applications/{id}: devuelve 409 Conflict si la actualización genera duplicidad")
+    void testActualizarDuplicadoDevuelve409() throws Exception {
+        when(candidaturaService.actualizar(eq(100L), any(CandidaturaUpdateRequest.class)))
+                .thenThrow(ApiException.conflict("Ya tienes registrada otra candidatura para este puesto, empresa y plataforma"));
+
+        String jsonBody = """
+                {
+                    "puesto": "Senior Lead Engineer"
+                }
+                """;
+
+        mockMvc.perform(put("/api/applications/100")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value("Ya tienes registrada otra candidatura para este puesto, empresa y plataforma"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/applications/{id}: devuelve 404 si la candidatura no existe o no pertenece al usuario")
     void testActualizarNoEncontradaDevuelve404() throws Exception {
         when(candidaturaService.actualizar(eq(999L), any(CandidaturaUpdateRequest.class)))
                 .thenThrow(ApiException.notFound("Candidatura no encontrada"));
@@ -350,7 +488,7 @@ class CandidaturaControllerTest {
                 }
                 """;
 
-        mockMvc.perform(patch("/api/applications/999")
+        mockMvc.perform(put("/api/applications/999")
                         .header("Authorization", TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
@@ -363,7 +501,7 @@ class CandidaturaControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/applications/{id}: devuelve 401 si no está autenticado")
+    @DisplayName("PUT /api/applications/{id}: devuelve 401 si no está autenticado")
     void testActualizarSinAutenticacionDevuelve401() throws Exception {
         String jsonBody = """
                 {
@@ -371,7 +509,7 @@ class CandidaturaControllerTest {
                 }
                 """;
 
-        mockMvc.perform(patch("/api/applications/100")
+        mockMvc.perform(put("/api/applications/100")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody))
                 .andExpect(status().isUnauthorized());
