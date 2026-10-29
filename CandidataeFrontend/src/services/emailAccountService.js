@@ -30,3 +30,14 @@ export async function desconectarCuentaCorreo(id) {
         throw new Error(`Error al desconectar la cuenta (${res.status})`)
     }
 }
+
+export async function conectarCuentaImap({ email, appPassword, provider }) {
+    return fetchJson('/api/email-accounts/imap', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+        },
+        body: JSON.stringify({ email, appPassword, provider })
+    })
+}
