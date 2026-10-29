@@ -1,8 +1,11 @@
 package com.candidatae.controller;
 
 import com.candidatae.dto.CuentaCorreoDto;
+import com.candidatae.dto.EmailSyncDto;
+import com.candidatae.service.EmailSyncService;
 import com.candidatae.exception.ApiException;
 import com.candidatae.integration.gmail.GmailOAuthService;
+import com.candidatae.integration.outlook.OutlookOAuthService;
 import com.candidatae.security.CurrentUserProvider;
 import com.candidatae.service.CuentaCorreoService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -47,13 +50,16 @@ public class CuentaCorreoController {
 
     /** Nombre de la cookie que ata el navegador a la solicitud de vinculación. */
     private static final String STATE_COOKIE = "gmail_link_state";
+    private static final String OUTLOOK_STATE_COOKIE = "outlook_link_state";
 
     /** Ruta del frontend donde se muestra la lista de cuentas de correo. */
     private static final String FRONTEND_CUENTAS_PATH = "/cuentas-correo";
 
     private final CuentaCorreoService cuentaCorreoService;
     private final GmailOAuthService gmailOAuthService;
+    private final OutlookOAuthService outlookOAuthService;
     private final CurrentUserProvider currentUserProvider;
+    private final EmailSyncService emailSyncService;
 
     @Value("${app.frontend.base-url:http://localhost:5173}")
     private String frontendBaseUrl;
@@ -112,6 +118,39 @@ public class CuentaCorreoController {
     public void desconectar(@PathVariable Long id,
                             @AuthenticationPrincipal UserDetails principal) {
         cuentaCorreoService.desconectar(id, currentUserProvider.requireUserId(principal));
+    }
+
+    /**
+     * Connects an email account via IMAP using a 16-character App Password.
+     */
+    @PostMapping("/imap")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CuentaCorreoDto.Response connectImapAccount(
+            @Valid @RequestBody EmailSyncDto.ConnectImapRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
+        return emailSyncService.connectImapAccount(
+                currentUserProvider.requireUserId(principal), request);
+    }
+
+    /**
+     * Triggers an on-demand manual email synchronization for the specified account.
+     */
+    @PostMapping("/{id}/sync")
+    public EmailSyncDto.SyncResultDto syncEmailAccount(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails principal) {
+        return emailSyncService.syncAccount(
+                id, currentUserProvider.requireUserId(principal));
+    }
+
+    /**
+     * Triggers on-demand manual email synchronization across ALL active email accounts assigned to the user.
+     */
+    @PostMapping("/sync")
+    public EmailSyncDto.MultiAccountSyncResultDto syncAllEmailAccounts(
+            @AuthenticationPrincipal UserDetails principal) {
+        return emailSyncService.syncAllUserAccounts(
+                currentUserProvider.requireUserId(principal));
     }
 
     /**
@@ -179,6 +218,75 @@ public class CuentaCorreoController {
             log.warn("La vinculación con Gmail ha fallado: {}", e.getMessage());
             response.sendRedirect(redirectUri("error", e.getMessage()));
         }
+    }
+
+    /**
+     * Inicia la vinculación OAuth2 de Outlook / Microsoft.
+     */
+    @PostMapping("/outlook")
+    public ResponseEntity<CuentaCorreoDto.OutlookAuthorize> autorizarOutlook(
+            @AuthenticationPrincipal UserDetails principal,
+            HttpServletResponse response) {
+
+        Long usuarioId = currentUserProvider.requireUserId(principal);
+        CuentaCorreoDto.OutlookAuthorize datos = outlookOAuthService.buildAuthorizationUrl(usuarioId);
+
+        ResponseCookie cookie = ResponseCookie.from(OUTLOOK_STATE_COOKIE, datos.state())
+                .httpOnly(true)
+                .secure(secureCookie)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(stateTtlSeconds)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
+        return ResponseEntity.ok(datos);
+    }
+
+    /**
+     * Callback de Microsoft / Outlook tras la vinculación OAuth2.
+     */
+    @GetMapping("/outlook/callback")
+    public void callbackOutlook(@RequestParam(name = "code", required = false) String code,
+                                @RequestParam(name = "state", required = false) String state,
+                                @RequestParam(name = "error", required = false) String error,
+                                @CookieValue(name = OUTLOOK_STATE_COOKIE, required = false) String cookieState,
+                                HttpServletResponse response) throws Exception {
+
+        if (error != null && !error.isBlank()) {
+            limpiarCookieOutlookState(response);
+            log.warn("Microsoft ha devuelto un error en el callback de OAuth: {}", error);
+            response.sendRedirect(redirectUri("error", "Microsoft rechazó la autorización (" + error + ")"));
+            return;
+        }
+
+        if (code == null || code.isBlank()) {
+            throw new org.springframework.web.bind.MissingServletRequestParameterException("code", "String");
+        }
+        if (state == null || state.isBlank()) {
+            throw new org.springframework.web.bind.MissingServletRequestParameterException("state", "String");
+        }
+
+        limpiarCookieOutlookState(response);
+        try {
+            OutlookOAuthService.OutlookToken token = outlookOAuthService.completarVinculacion(code, state, cookieState);
+            cuentaCorreoService.registrarVinculacion(token.usuarioId(), token.email(), token.refreshToken(), com.candidatae.domain.ProveedorCorreo.OUTLOOK);
+            response.sendRedirect(redirectUri("ok", null));
+        } catch (ApiException e) {
+            log.warn("La vinculación con Outlook ha fallado: {}", e.getMessage());
+            response.sendRedirect(redirectUri("error", e.getMessage()));
+        }
+    }
+
+    private void limpiarCookieOutlookState(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from(OUTLOOK_STATE_COOKIE, "")
+                .httpOnly(true)
+                .secure(secureCookie)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     private void limpiarCookieState(HttpServletResponse response) {

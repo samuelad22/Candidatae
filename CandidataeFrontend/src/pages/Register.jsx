@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { validateRegister } from '../utils/formValidations'
 import ThemeToggle from '../components/layout/ThemeToggler'
@@ -6,6 +6,12 @@ import { registerUser } from '../services/authService'
 
 export default function Register() {
     const navigate = useNavigate()
+
+    useEffect(() => {
+        if (localStorage.getItem('token')) {
+            navigate('/dashboard', { replace: true })
+        }
+    }, [navigate])
 
     const [formData, setFormData] = useState({
         name: '',
@@ -45,7 +51,7 @@ export default function Register() {
         try {
             const { confirmPassword, ...registrationData } = formData
             await registerUser(registrationData)
-            navigate('/')
+            navigate('/dashboard')
         } catch (err) {
             setServerError(err.message || 'Error al registrar la cuenta. Es posible que el email ya esté en uso.')
         } finally {

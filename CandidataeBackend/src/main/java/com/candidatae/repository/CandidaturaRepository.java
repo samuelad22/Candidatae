@@ -34,6 +34,11 @@ public interface CandidaturaRepository extends JpaRepository<Candidatura, Long>,
     boolean existsByUsuarioIdAndClaveDeduplicacion(Long usuarioId, String claveDeduplicacion);
 
     /**
+     * Busca una candidatura existente por su clave de deduplicación para sincronizaciones automáticas.
+     */
+    Optional<Candidatura> findByUsuarioIdAndClaveDeduplicacion(Long usuarioId, String claveDeduplicacion);
+
+    /**
      * Busca candidaturas de forma paginada según los criterios de filtrado.
      */
     @Override
@@ -49,4 +54,14 @@ public interface CandidaturaRepository extends JpaRepository<Candidatura, Long>,
      * Cuenta las candidaturas de un usuario en un estado determinado.
      */
     long countByUsuarioIdAndEstadoActual(Long usuarioId, EstadoCandidatura estadoActual);
+
+    /**
+     * Comprueba si existen candidaturas asociadas a una empresa (protección de integridad referencial).
+     */
+    boolean existsByEmpresaId(Long empresaId);
+
+    /**
+     * Comprueba si existen candidaturas asociadas a una plataforma (proteccion de integridad referencial).
+     */
+    boolean existsByPlataformaId(Long plataformaId);
 }

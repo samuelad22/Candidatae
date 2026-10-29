@@ -14,17 +14,37 @@ import java.util.Optional;
 public interface PlataformaRepository extends JpaRepository<Plataforma, Long> {
 
     /**
-     * Busca una plataforma por su código único.
+     * Busca una plataforma por su codigo unico.
      */
     Optional<Plataforma> findByCodigo(String codigo);
 
     /**
-     * Busca una plataforma por su código ignorando mayúsculas y minúsculas.
+     * Busca una plataforma por su codigo ignorando mayusculas y minusculas.
      */
     Optional<Plataforma> findByCodigoIgnoreCase(String codigo);
 
     /**
-     * Lista todas las plataformas ordenadas alfabéticamente por nombre.
+     * Comprueba si ya existe una plataforma registrada con un codigo concreto.
+     */
+    boolean existsByCodigoIgnoreCase(String codigo);
+
+    /**
+     * Comprueba si ya existe otra plataforma con el mismo codigo pero distinto identificador.
+     */
+    boolean existsByCodigoIgnoreCaseAndIdNot(String codigo, Long id);
+
+    /**
+     * Lista todas las plataformas ordenadas alfabeticamente por nombre.
      */
     List<Plataforma> findAllByOrderByNombreAsc();
+
+    /**
+     * Filtra plataformas por coincidencia parcial en el nombre.
+     */
+    List<Plataforma> findByNombreContainingIgnoreCaseOrderByNombreAsc(String nombre);
+
+    /**
+     * Lista plataformas secundarias que tienen asignada una plataforma de origen concreta.
+     */
+    List<Plataforma> findByPlataformaOrigenId(Long plataformaOrigenId);
 }

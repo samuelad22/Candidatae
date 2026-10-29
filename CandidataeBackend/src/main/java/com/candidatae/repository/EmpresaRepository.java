@@ -4,6 +4,7 @@ import com.candidatae.domain.Empresa;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -26,4 +27,19 @@ public interface EmpresaRepository extends JpaRepository<Empresa, Long> {
      * Comprueba si ya existe una empresa con ese nombre normalizado.
      */
     boolean existsByNombreNormalizado(String nombreNormalizado);
+
+    /**
+     * Devuelve todas las empresas ordenadas alfabéticamente por nombre.
+     */
+    List<Empresa> findAllByOrderByNombreAsc();
+
+    /**
+     * Búsqueda parcial de empresas por nombre (insensible a mayúsculas/minúsculas) ordenadas alfabéticamente.
+     */
+    List<Empresa> findByNombreContainingIgnoreCaseOrderByNombreAsc(String search);
+
+    /**
+     * Comprueba si ya existe otra empresa con ese nombre normalizado excluyendo un ID específico.
+     */
+    boolean existsByNombreNormalizadoAndIdNot(String nombreNormalizado, Long id);
 }

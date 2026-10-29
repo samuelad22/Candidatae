@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -762,5 +763,71 @@ class CandidaturaServiceTest {
         assertEquals("Candidatura no encontrada", ex.getMessage());
 
         verify(candidaturaRepository, never()).delete(any(Candidatura.class));
+    }
+
+    @Test
+    @DisplayName("registrarOActualizarDesdeCorreo: crea nueva candidatura e historial AUTOMATICO cuando no existe")
+    void testRegistrarDesdeCorreoCreaNuevaCandidatura() {
+        Long usuarioId = 10L;
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        Empresa empresa = Empresa.builder().id(1L).nombre("Amazon").nombreNormalizado("amazon").build();
+        Plataforma plataforma = Plataforma.builder().id(2L).codigo("LINKEDIN").nombre("LinkedIn").build();
+
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
+        when(empresaRepository.findByNombreNormalizado("amazon")).thenReturn(Optional.of(empresa));
+        when(plataformaRepository.findByCodigoIgnoreCase("LINKEDIN")).thenReturn(Optional.of(plataforma));
+        when(candidaturaRepository.findByUsuarioIdAndClaveDeduplicacion(eq(usuarioId), anyString()))
+                .thenReturn(Optional.empty());
+        when(candidaturaRepository.save(any(Candidatura.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Candidatura resultado = candidaturaService.registrarOActualizarDesdeCorreo(
+                usuarioId, "LINKEDIN", "APPLIED", "Senior Java Engineer", "Amazon", LocalDate.now()
+        );
+
+        assertNotNull(resultado);
+        assertEquals("Senior Java Engineer", resultado.getPuesto());
+        assertEquals(EstadoCandidatura.ENVIADA, resultado.getEstadoActual());
+        assertEquals(1, resultado.getHistoriales().size());
+        assertEquals(OrigenEvento.AUTOMATICO, resultado.getHistoriales().get(0).getOrigen());
+        verify(candidaturaRepository).save(any(Candidatura.class));
+    }
+
+    @Test
+    @DisplayName("registrarOActualizarDesdeCorreo: actualiza estado e historial AUTOMATICO cuando ya existe")
+    void testRegistrarDesdeCorreoActualizaCandidaturaExistente() {
+        Long usuarioId = 10L;
+        Usuario usuario = Usuario.builder().id(usuarioId).email("test@example.com").build();
+        Empresa empresa = Empresa.builder().id(1L).nombre("Amazon").nombreNormalizado("amazon").build();
+        Plataforma plataforma = Plataforma.builder().id(2L).codigo("LINKEDIN").nombre("LinkedIn").build();
+
+        Candidatura existente = Candidatura.builder()
+                .id(50L)
+                .usuario(usuario)
+                .empresa(empresa)
+                .plataforma(plataforma)
+                .puesto("Senior Java Engineer")
+                .estadoActual(EstadoCandidatura.ENVIADA)
+                .fechaSolicitud(LocalDate.now().minusDays(3))
+                .fechaUltimoCambio(Instant.now().minusSeconds(86400))
+                .build();
+
+        when(usuarioRepository.findById(usuarioId)).thenReturn(Optional.of(usuario));
+        when(empresaRepository.findByNombreNormalizado("amazon")).thenReturn(Optional.of(empresa));
+        when(plataformaRepository.findByCodigoIgnoreCase("LINKEDIN")).thenReturn(Optional.of(plataforma));
+        when(candidaturaRepository.findByUsuarioIdAndClaveDeduplicacion(eq(usuarioId), anyString()))
+                .thenReturn(Optional.of(existente));
+        when(candidaturaRepository.save(any(Candidatura.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Candidatura resultado = candidaturaService.registrarOActualizarDesdeCorreo(
+                usuarioId, "LINKEDIN", "INTERVIEW", "Senior Java Engineer", "Amazon", LocalDate.now()
+        );
+
+        assertNotNull(resultado);
+        assertEquals(EstadoCandidatura.ENTREVISTA, resultado.getEstadoActual());
+        assertEquals(1, resultado.getHistoriales().size());
+        assertEquals(EstadoCandidatura.ENVIADA, resultado.getHistoriales().get(0).getEstadoAnterior());
+        assertEquals(EstadoCandidatura.ENTREVISTA, resultado.getHistoriales().get(0).getEstadoNuevo());
+        assertEquals(OrigenEvento.AUTOMATICO, resultado.getHistoriales().get(0).getOrigen());
+        verify(candidaturaRepository).save(existente);
     }
 }

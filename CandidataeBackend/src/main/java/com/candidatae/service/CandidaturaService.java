@@ -29,6 +29,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -218,10 +219,14 @@ public class CandidaturaService {
 
             // 6. Filtro opcional de texto libre en puesto, nombre de empresa o ubicación
             if (search != null && !search.isBlank()) {
-                String searchPattern = "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
-                Predicate matchPuesto = cb.like(cb.lower(root.get("puesto")), searchPattern);
-                Predicate matchEmpresa = cb.like(cb.lower(root.get("empresa").get("nombre")), searchPattern);
-                Predicate matchUbicacion = cb.like(cb.lower(root.get("ubicacion")), searchPattern);
+                String sanitizedSearch = search.trim();
+                if (sanitizedSearch.length() > 100) {
+                    sanitizedSearch = sanitizedSearch.substring(0, 100);
+                }
+                String searchPattern = "%" + escapeLikeWildcards(sanitizedSearch.toLowerCase(Locale.ROOT)) + "%";
+                Predicate matchPuesto = cb.like(cb.lower(root.get("puesto")), searchPattern, '\\');
+                Predicate matchEmpresa = cb.like(cb.lower(root.get("empresa").get("nombre")), searchPattern, '\\');
+                Predicate matchUbicacion = cb.like(cb.lower(root.get("ubicacion")), searchPattern, '\\');
 
                 predicates.add(cb.or(matchPuesto, matchEmpresa, matchUbicacion));
             }
@@ -230,7 +235,12 @@ public class CandidaturaService {
         };
 
         // Orden descendente por fecha de último cambio y paginación
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "fechaUltimoCambio"));
+        Sort sort = Sort.by(
+                Sort.Order.desc("fechaUltimoCambio"),
+                Sort.Order.desc("fechaSolicitud"),
+                Sort.Order.desc("id")
+        );
+        Pageable pageable = PageRequest.of(page, size, sort);
         Page<Candidatura> candidaturasPage = candidaturaRepository.findAll(spec, pageable);
 
         return PageResponse.from(candidaturasPage.map(CandidaturaResponse::fromEntity));
@@ -502,4 +512,164 @@ public class CandidaturaService {
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("^-+|-+$", "");
     }
-}
+
+    /**
+     * Escapa caracteres comodín de SQL LIKE (%, _, \\) para evitar búsquedas expansivas involuntarias.
+     */
+    public String escapeLikeWildcards(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+    }
+
+    /**
+     * Registra o actualiza en base de datos una candidatura detectada automáticamente desde un correo electrónico.
+     */
+    @Transactional
+    public Candidatura registrarOActualizarDesdeCorreo(
+            Long usuarioId,
+            String plataformaCodigo,
+            String estadoDetectado,
+            String puesto,
+            String empresaNombre,
+            LocalDate fechaSolicitud
+    ) {
+        return registrarOActualizarDesdeCorreo(
+                usuarioId, plataformaCodigo, estadoDetectado, puesto, empresaNombre, fechaSolicitud, Instant.now()
+        );
+    }
+
+    /**
+     * Registra o actualiza en base de datos una candidatura detectada desde un correo electrónico con su fecha/hora precisa.
+     */
+    @Transactional
+    public Candidatura registrarOActualizarDesdeCorreo(
+            Long usuarioId,
+            String plataformaCodigo,
+            String estadoDetectado,
+            String puesto,
+            String empresaNombre,
+            LocalDate fechaSolicitud,
+            Instant fechaEvento
+    ) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> ApiException.notFound("Usuario no encontrado"));
+
+        EstadoCandidatura nuevoEstado = mapearEstadoDetectado(estadoDetectado);
+        String nombreEmpresaLimpio = empresaNombre != null && !empresaNombre.isBlank()
+                ? empresaNombre.trim()
+                : "Empresa Confidencial";
+        if (nombreEmpresaLimpio.length() > 255) {
+            nombreEmpresaLimpio = nombreEmpresaLimpio.substring(0, 255).trim();
+        }
+        Empresa empresa = buscarOCrearEmpresa(nombreEmpresaLimpio);
+
+        Plataforma plataforma = null;
+        if (plataformaCodigo != null && !plataformaCodigo.isBlank()) {
+            String codigoPlataforma = plataformaCodigo.trim();
+            if (codigoPlataforma.length() > 50) {
+                codigoPlataforma = codigoPlataforma.substring(0, 50).trim();
+            }
+            plataforma = buscarOCrearPlataforma(codigoPlataforma);
+        }
+
+        String puestoLimpio = puesto != null && !puesto.isBlank() ? puesto.trim() : "Puesto de empleo";
+        if (puestoLimpio.length() > 255) {
+            puestoLimpio = puestoLimpio.substring(0, 255).trim();
+        }
+        String claveDeduplicacion = construirClaveDeduplicacion(
+                empresa.getNombreNormalizado(),
+                puestoLimpio,
+                "sin-ubicacion",
+                plataforma
+        );
+
+        Instant ahora = fechaEvento != null ? fechaEvento : Instant.now();
+        Candidatura candidatura = candidaturaRepository
+                .findByUsuarioIdAndClaveDeduplicacion(usuarioId, claveDeduplicacion)
+                .orElse(null);
+
+        if (candidatura == null) {
+            candidatura = Candidatura.builder()
+                    .usuario(usuario)
+                    .empresa(empresa)
+                    .plataforma(plataforma)
+                    .puesto(puestoLimpio)
+                    .fechaSolicitud(fechaSolicitud != null ? fechaSolicitud : LocalDate.now())
+                    .estadoActual(nuevoEstado)
+                    .fechaUltimoCambio(ahora)
+                    .confianza(BigDecimal.valueOf(0.95))
+                    .claveDeduplicacion(claveDeduplicacion)
+                    .build();
+
+            HistorialEstado primerHistorial = HistorialEstado.builder()
+                    .candidatura(candidatura)
+                    .estadoAnterior(null)
+                    .estadoNuevo(nuevoEstado)
+                    .fechaEvento(ahora)
+                    .origen(OrigenEvento.AUTOMATICO)
+                    .build();
+
+            candidatura.addHistorial(primerHistorial);
+            return candidaturaRepository.save(candidatura);
+        } else {
+            if (candidatura.getEstadoActual() != nuevoEstado) {
+                EstadoCandidatura estadoViejo = candidatura.getEstadoActual();
+                HistorialEstado transicion = HistorialEstado.builder()
+                        .candidatura(candidatura)
+                        .estadoAnterior(estadoViejo)
+                        .estadoNuevo(nuevoEstado)
+                        .fechaEvento(ahora)
+                        .origen(OrigenEvento.AUTOMATICO)
+                        .build();
+
+                candidatura.addHistorial(transicion);
+                candidatura.setEstadoActual(nuevoEstado);
+                candidatura.setFechaUltimoCambio(ahora);
+                return candidaturaRepository.save(candidatura);
+            }
+            return candidatura;
+        }
+    }
+
+    private Plataforma buscarOCrearPlataforma(String codigo) {
+        if (codigo == null || codigo.isBlank()) return null;
+        String cod = codigo.trim().toUpperCase(Locale.ROOT);
+        return plataformaRepository.findByCodigoIgnoreCase(cod)
+                .orElseGet(() -> {
+                    String nombre = switch (cod) {
+                        case "MANFRED" -> "Manfred";
+                        case "TICJOB" -> "Ticjob";
+                        case "GREENHOUSE" -> "Greenhouse";
+                        case "LEVER" -> "Lever";
+                        case "WORKABLE" -> "Workable";
+                        case "ASHBY" -> "Ashby";
+                        case "SMARTRECRUITERS" -> "SmartRecruiters";
+                        case "DOMESTIKA" -> "Domestika";
+                        case "WELCOMETOTHEJUNGLE" -> "Welcome to the Jungle";
+                        case "CORREO_DIRECTO" -> "Correo Directo";
+                        default -> cod.charAt(0) + cod.substring(1).toLowerCase(Locale.ROOT);
+                    };
+                    Plataforma nueva = Plataforma.builder().codigo(cod).nombre(nombre).build();
+                    try {
+                        return plataformaRepository.save(nueva);
+                    } catch (Exception e) {
+                        return plataformaRepository.findByCodigoIgnoreCase(cod).orElse(null);
+                    }
+                });
+    }
+
+    private EstadoCandidatura mapearEstadoDetectado(String estadoDetectado) {
+        if (estadoDetectado == null) return EstadoCandidatura.ENVIADA;
+        return switch (estadoDetectado.toUpperCase(Locale.ROOT)) {
+            case "REJECTED" -> EstadoCandidatura.RECHAZADA;
+            case "OFFER" -> EstadoCandidatura.OFERTA;
+            case "INTERVIEW" -> EstadoCandidatura.ENTREVISTA;
+            case "IN_PROGRESS" -> EstadoCandidatura.EN_PROCESO;
+            default -> EstadoCandidatura.ENVIADA;
+        };
+    }
+    }

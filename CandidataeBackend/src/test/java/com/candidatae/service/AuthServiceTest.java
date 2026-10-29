@@ -5,7 +5,9 @@ import com.candidatae.domain.Usuario;
 import com.candidatae.dto.AuthDto;
 import com.candidatae.exception.ApiException;
 import com.candidatae.repository.UsuarioRepository;
+import com.candidatae.scheduler.UserLoggedInEvent;
 import com.candidatae.security.JwtService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,9 @@ class AuthServiceTest {
 
     @Mock
     private AuthenticationManager authenticationManager;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private AuthService authService;
@@ -124,6 +129,7 @@ class AuthServiceTest {
             verify(authenticationManager).authenticate(captor.capture());
             assertThat(captor.getValue().getPrincipal()).isEqualTo("ana@correo.com");
             assertThat(captor.getValue().getCredentials()).isEqualTo("password123");
+            verify(eventPublisher).publishEvent(new UserLoggedInEvent("ana@correo.com"));
         }
 
         @Test

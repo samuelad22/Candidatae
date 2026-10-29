@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -113,7 +114,7 @@ public class CandidaturaController {
                         @ApiResponse(responseCode = "404", description = "Candidatura no encontrada o no pertenece al usuario autenticado"),
                         @ApiResponse(responseCode = "409", description = "Ya tienes registrada otra candidatura para este puesto, empresa y plataforma")
         })
-        @PutMapping("/{id}")
+        @RequestMapping(value = "/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
         public ResponseEntity<CandidaturaResponse> actualizar(
                         @PathVariable Long id,
                         @Valid @RequestBody CandidaturaUpdateRequest request) {
