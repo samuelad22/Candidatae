@@ -1,4 +1,4 @@
-import ThemeToggle from './ThemeToggle'
+import ThemeToggle from './ThemeToggler'
 
 export default function Navbar() {
     return (

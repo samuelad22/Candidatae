@@ -95,4 +95,18 @@ public class CuentaCorreo {
 
     @Column(name = "fecha_desconexion")
     private Instant fechaDesconexion;
+
+    @Column(name = "last_sync_at")
+    private Instant lastSyncAt;
+
+    @Column(name = "uid_validity")
+    private Long uidValidity;
+
+    @Column(name = "last_uid")
+    private Long lastUid;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sync_status", nullable = false, length = 50)
+    @Builder.Default
+    private SyncStatus syncStatus = SyncStatus.IDLE;
 }

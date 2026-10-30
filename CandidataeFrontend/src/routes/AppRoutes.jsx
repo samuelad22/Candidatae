@@ -6,8 +6,10 @@ import PrivateRoutes from './PrivateRoutes'
 export default function AppRoutes() {
     return (
         <Routes>
-            <Route path="/*" element={<PublicRoutes />} />
             <Route path="/dashboard/*" element={<PrivateRoutes />} />
+            <Route path="/candidaturas/*" element={<PrivateRoutes />} />
+            <Route path="/cuentas-correo/*" element={<PrivateRoutes />} />
+            <Route path="/*" element={<PublicRoutes />} />
         </Routes>
     )
 }

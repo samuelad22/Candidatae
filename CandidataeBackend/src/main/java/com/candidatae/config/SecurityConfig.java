@@ -56,7 +56,7 @@ public class SecurityConfig {
                         // Callback de la vinculación OAuth2 de Gmail: lo llama Google, no el
                         // usuario, así que no lleva JWT. La protección la aporta el "state"
                         // firmado que valida el controlador (ver GmailOAuthService).
-                        .requestMatchers("/api/email-accounts/gmail/callback").permitAll()
+                        .requestMatchers("/api/email-accounts/gmail/callback", "/api/email-accounts/outlook/callback").permitAll()
                         .requestMatchers("/error").permitAll()
                         // Documentación de la API.
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

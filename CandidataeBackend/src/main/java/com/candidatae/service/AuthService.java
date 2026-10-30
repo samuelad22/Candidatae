@@ -5,8 +5,10 @@ import com.candidatae.domain.Usuario;
 import com.candidatae.dto.AuthDto;
 import com.candidatae.exception.ApiException;
 import com.candidatae.repository.UsuarioRepository;
+import com.candidatae.scheduler.UserLoggedInEvent;
 import com.candidatae.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -31,6 +33,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public AuthDto.Response register(AuthDto.Register request) {
@@ -64,6 +67,10 @@ public class AuthService {
             throw ApiException.unauthorized("Credenciales inválidas");
         }
 
-        return new AuthDto.Response(jwtService.generateToken(email), email);
+        String token = jwtService.generateToken(email);
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new UserLoggedInEvent(email));
+        }
+        return new AuthDto.Response(token, email);
     }
 }

@@ -47,6 +47,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -406,6 +407,30 @@ class CandidaturaControllerTest {
                 .andExpect(jsonPath("$.empresaNombre").value("Google"))
                 .andExpect(jsonPath("$.puesto").value("Lead Engineer"))
                 .andExpect(jsonPath("$.estadoActual").value("ENTREVISTA"));
+
+        verify(candidaturaService).actualizar(eq(100L), any(CandidaturaUpdateRequest.class));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/applications/{id}: también acepta peticiones PATCH para compatibilidad")
+    void testActualizarCandidaturaViaPatchExitoso() throws Exception {
+        when(candidaturaService.actualizar(eq(100L), any(CandidaturaUpdateRequest.class)))
+                .thenReturn(crearEjemploResponse(100L, "Google", "Lead Engineer", EstadoCandidatura.ENTREVISTA));
+
+        String jsonBody = """
+                {
+                    "puesto": "Lead Engineer",
+                    "estadoActual": "ENTREVISTA"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/applications/100")
+                        .header("Authorization", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(100))
+                .andExpect(jsonPath("$.puesto").value("Lead Engineer"));
 
         verify(candidaturaService).actualizar(eq(100L), any(CandidaturaUpdateRequest.class));
     }

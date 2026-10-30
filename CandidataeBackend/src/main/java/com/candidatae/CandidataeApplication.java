@@ -2,6 +2,8 @@ package com.candidatae;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Punto de entrada de la aplicación Candidatae.
@@ -17,6 +19,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * y los repositorios.</p>
  */
 @SpringBootApplication
+@EnableAsync
+@EnableScheduling
 public class CandidataeApplication {
 
     public static void main(String[] args) {

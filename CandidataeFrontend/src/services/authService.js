@@ -1,7 +1,7 @@
 import { fetchJson } from '../utils/fetch'
 
 export async function loginUser(credentials) {
-    const data = await fetchJson('/api/v1/auth/login', {
+    const data = await fetchJson('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
     })
@@ -14,7 +14,7 @@ export async function loginUser(credentials) {
 }
 
 export async function registerUser(userData) {
-    const data = await fetchJson('/api/v1/auth/register', {
+    const data = await fetchJson('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify(userData),
     })

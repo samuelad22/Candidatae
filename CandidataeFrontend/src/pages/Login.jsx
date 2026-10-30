@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { validateLogin } from '../utils/formValidations'
 import ThemeToggle from '../components/layout/ThemeToggler'
@@ -6,6 +6,12 @@ import { loginUser } from '../services/authService'
 
 export default function Login() {
     const navigate = useNavigate()
+
+    useEffect(() => {
+        if (localStorage.getItem('token')) {
+            navigate('/dashboard', { replace: true })
+        }
+    }, [navigate])
 
     const [formData, setFormData] = useState({
         email: '',
@@ -42,7 +48,7 @@ export default function Login() {
 
         try {
             await loginUser(formData)
-            navigate('/')
+            navigate('/dashboard')
         } catch (err) {
             setServerError(err.message || 'Error al iniciar sesión. Comprueba tus credenciales.')
         } finally {
