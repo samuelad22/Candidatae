@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { listarCuentasCorreo } from "../../services/emailAccountService"
 import EmailAccountCard from "./emailAccountCard"
 
-function EmailAccountList() {
+function EmailAccountList({ reloadKey }) {
     const [accounts, setAccounts] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -12,7 +12,10 @@ function EmailAccountList() {
 
         listarCuentasCorreo()
             .then((data) => {
-                if (!cancelado) setAccounts(Array.isArray(data) ? data : [])
+                if (!cancelado) {
+                    setAccounts(Array.isArray(data) ? data : [])
+                    setError(null)
+                }
             })
             .catch((requestError) => {
                 if (!cancelado) setError(requestError)
@@ -24,7 +27,7 @@ function EmailAccountList() {
         return () => {
             cancelado = true
         }
-    }, [])
+    }, [reloadKey])
 
     if (loading) return <p>Cargando cuentas de correo...</p>
     if (error) return <p role="alert">No se pudieron cargar las cuentas de correo.</p>
@@ -34,7 +37,7 @@ function EmailAccountList() {
         <section>
             {accounts.map(({ id, emailCuenta, proveedor, estadoConexion, fechaConexion }) => (
                 <EmailAccountCard
-                    key={id} // obligatoria para que React distinga unas cards de otras
+                    key={id}
                     emailCuenta={emailCuenta}
                     proveedor={proveedor}
                     estadoConexion={estadoConexion}
