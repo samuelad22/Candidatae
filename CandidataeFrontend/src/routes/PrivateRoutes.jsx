@@ -1,4 +1,5 @@
 import { Navigate, Routes, Route } from 'react-router-dom'
+import EmailAccounts from '../pages/EmailAccounts'
 
 // import Dashboard from '../pages/Candidacies'
 
@@ -13,6 +14,7 @@ export default function PrivateRoutes() {
         <Routes>
             {/* Ejemplo: */}
             {/* <Route path="/candidaturas" element={<Candidacies />} /> */}
+            <Route path="/cuentas-correo" element={<EmailAccounts />} />
         </Routes>
     )
 }
