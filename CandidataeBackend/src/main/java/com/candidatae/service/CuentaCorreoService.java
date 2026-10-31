@@ -148,6 +148,9 @@ public class CuentaCorreoService {
                 if (cuenta.getEstadoConexion() == EstadoConexion.ACTIVA) {
                     cuenta.setRefreshTokenCifrado(null);
                     cuenta.setCursorSincronizacion(null);
+            cuenta.setLastUid(null);
+            cuenta.setUidValidity(null);
+            cuenta.setLastSyncAt(null);
                     cuenta.setEstadoConexion(EstadoConexion.PENDIENTE);
                 }
                 cuenta.setEmailCuenta(email);
@@ -167,6 +170,9 @@ public class CuentaCorreoService {
 
         if (Boolean.TRUE.equals(dto.resetCursor())) {
             cuenta.setCursorSincronizacion(null);
+            cuenta.setLastUid(null);
+            cuenta.setUidValidity(null);
+            cuenta.setLastSyncAt(null);
         }
 
         return CuentaCorreoDto.Response.from(cuentaCorreoRepository.save(cuenta));
@@ -188,9 +194,11 @@ public class CuentaCorreoService {
 
         if (cuenta.getRefreshTokenCifrado() != null) {
             try {
-                // Revocamos en Google (best effort) para que el acceso muera de inmediato.
-                String tokenEnClaro = tokenCipherService.decrypt(cuenta.getRefreshTokenCifrado());
-                gmailOAuthService.revocarToken(tokenEnClaro);
+                if (cuenta.getProveedor() == ProveedorCorreo.GMAIL) {
+                    // Revocamos en Google (best effort) para que el acceso muera de inmediato.
+                    String tokenEnClaro = tokenCipherService.decrypt(cuenta.getRefreshTokenCifrado());
+                    gmailOAuthService.revocarToken(tokenEnClaro);
+                }
             } catch (Exception e) {
                 log.warn("No se ha podido descifrar o revocar el token en Google para la cuenta {}: {}. Continuando con la desconexión local.", id, e.getMessage());
             }
@@ -254,6 +262,11 @@ public class CuentaCorreoService {
      */
     @Transactional
     public CuentaCorreoDto.Response registrarVinculacion(Long usuarioId, String email, String refreshToken) {
+        return registrarVinculacion(usuarioId, email, refreshToken, ProveedorCorreo.GMAIL);
+    }
+
+    @Transactional
+    public CuentaCorreoDto.Response registrarVinculacion(Long usuarioId, String email, String refreshToken, ProveedorCorreo proveedor) {
         String emailNormalizado = normalizar(email);
 
         CuentaCorreo cuenta = cuentaCorreoRepository
@@ -268,12 +281,12 @@ public class CuentaCorreoService {
 
             cuenta = CuentaCorreo.builder()
                     .usuario(usuario)
-                    .proveedor(ProveedorCorreo.GMAIL)
+                    .proveedor(proveedor != null ? proveedor : ProveedorCorreo.GMAIL)
                     .emailCuenta(emailNormalizado)
                     .build();
         }
 
-        cuenta.setProveedor(ProveedorCorreo.GMAIL);
+        cuenta.setProveedor(proveedor != null ? proveedor : ProveedorCorreo.GMAIL);
         cuenta.setEmailCuenta(emailNormalizado);
         cuenta.setRefreshTokenCifrado(tokenCipherService.encrypt(refreshToken));
         cuenta.setEstadoConexion(EstadoConexion.ACTIVA);

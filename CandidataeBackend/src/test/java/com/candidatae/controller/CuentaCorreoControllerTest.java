@@ -6,9 +6,12 @@ import com.candidatae.security.JsonAccessDeniedHandler;
 import com.candidatae.security.JsonAuthenticationEntryPoint;
 import com.candidatae.controller.CuentaCorreoController;
 import com.candidatae.dto.CuentaCorreoDto;
+import com.candidatae.dto.EmailSyncDto;
+import com.candidatae.service.EmailSyncService;
 import com.candidatae.exception.ApiException;
 import com.candidatae.service.CuentaCorreoService;
 import com.candidatae.integration.gmail.GmailOAuthService;
+import com.candidatae.integration.outlook.OutlookOAuthService;
 import com.candidatae.config.SecurityConfig;
 import com.candidatae.domain.Usuario;
 import com.candidatae.repository.UsuarioRepository;
@@ -75,6 +78,9 @@ class CuentaCorreoControllerTest {
     private GmailOAuthService gmailOAuthService;
 
     @MockitoBean
+    private OutlookOAuthService outlookOAuthService;
+
+    @MockitoBean
     private CurrentUserProvider currentUserProvider;
 
     @MockitoBean
@@ -82,6 +88,9 @@ class CuentaCorreoControllerTest {
 
     @MockitoBean
     private JwtService jwtService;
+
+    @MockitoBean
+    private EmailSyncService emailSyncService;
 
     @BeforeEach
     void setUp() {
@@ -394,6 +403,109 @@ class CuentaCorreoControllerTest {
                         assertTrue(url.contains("access_denied"));
                     })
                     .andExpect(cookie().maxAge("gmail_link_state", 0));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/email-accounts/outlook")
+    class AutorizarOutlook {
+
+        @Test
+        @DisplayName("Test Outlook 1: devuelve la URL de Microsoft y deja la cookie anti-CSRF")
+        void devuelveLaUrlYLaCookieOutlook() throws Exception {
+            when(outlookOAuthService.buildAuthorizationUrl(USUARIO_ID))
+                    .thenReturn(new CuentaCorreoDto.OutlookAuthorize(
+                            "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=ms-123&state=xyz",
+                            "xyz"));
+
+            mockMvc.perform(post("/api/email-accounts/outlook").header("Authorization", TOKEN))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.authorizationUrl").value(
+                            "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=ms-123&state=xyz"))
+                    .andExpect(jsonPath("$.state").value("xyz"))
+                    .andExpect(cookie().exists("outlook_link_state"))
+                    .andExpect(cookie().httpOnly("outlook_link_state", true))
+                    .andExpect(cookie().secure("outlook_link_state", false));
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/email-accounts/outlook/callback")
+    class CallbackOutlook {
+
+        @Test
+        @DisplayName("Test Outlook 2: vinculación correcta -> 302 al frontend con linked=ok")
+        void vinculacionOutlookCorrectaRedirigeConOk() throws Exception {
+            when(outlookOAuthService.completarVinculacion("code-ms", "state-xyz", "state-xyz"))
+                    .thenReturn(new OutlookOAuthService.OutlookToken(USUARIO_ID, "ana@outlook.com", "refresh-token-ms"));
+
+            mockMvc.perform(get("/api/email-accounts/outlook/callback")
+                            .param("code", "code-ms")
+                            .param("state", "state-xyz")
+                            .cookie(new jakarta.servlet.http.Cookie("outlook_link_state", "state-xyz")))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("http://localhost:5173/cuentas-correo?linked=ok"));
+
+            verify(cuentaCorreoService).registrarVinculacion(
+                    USUARIO_ID, "ana@outlook.com", "refresh-token-ms", com.candidatae.domain.ProveedorCorreo.OUTLOOK);
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/email-accounts/imap & POST /api/email-accounts/{id}/sync")
+    class ImapAndSync {
+
+        @Test
+        @DisplayName("Test 18: POST /api/email-accounts/imap connects account with App Password -> 201")
+        void connectImapReturns201() throws Exception {
+            when(emailSyncService.connectImapAccount(eq(USUARIO_ID), any()))
+                    .thenReturn(cuenta(1L, "ana@gmail.com", "ACTIVA"));
+
+            String json = """
+                    { "email": "ana@gmail.com", "appPassword": "abcd efgh ijkl mnop", "provider": "GMAIL" }
+                    """;
+
+            mockMvc.perform(post("/api/email-accounts/imap")
+                            .header("Authorization", TOKEN)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").value(1))
+                    .andExpect(jsonPath("$.emailCuenta").value("ana@gmail.com"))
+                    .andExpect(jsonPath("$.estadoConexion").value("ACTIVA"));
+        }
+
+        @Test
+        @DisplayName("Test 19: POST /api/email-accounts/{id}/sync triggers manual sync -> 200")
+        void syncEmailAccountReturns200() throws Exception {
+            EmailSyncDto.SyncResultDto syncResult = new EmailSyncDto.SyncResultDto(
+                    1L, 10, 2, 1, Instant.parse("2026-10-27T12:00:00Z"), "SUCCESS", List.of()
+            );
+            when(emailSyncService.syncAccount(1L, USUARIO_ID)).thenReturn(syncResult);
+
+            mockMvc.perform(post("/api/email-accounts/1/sync").header("Authorization", TOKEN))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.accountId").value(1))
+                    .andExpect(jsonPath("$.emailsScanned").value(10))
+                    .andExpect(jsonPath("$.candidaciesCreated").value(2))
+                    .andExpect(jsonPath("$.candidaciesUpdated").value(1))
+                    .andExpect(jsonPath("$.syncStatus").value("SUCCESS"));
+        }
+
+        @Test
+        @DisplayName("Test 20: POST /api/email-accounts/sync triggers sync across ALL user accounts -> 200")
+        void syncAllEmailAccountsReturns200() throws Exception {
+            EmailSyncDto.MultiAccountSyncResultDto multiResult = new EmailSyncDto.MultiAccountSyncResultDto(
+                    2, 25, 4, 3, Instant.parse("2026-10-27T12:00:00Z"), List.of()
+            );
+            when(emailSyncService.syncAllUserAccounts(USUARIO_ID)).thenReturn(multiResult);
+
+            mockMvc.perform(post("/api/email-accounts/sync").header("Authorization", TOKEN))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.accountsSynced").value(2))
+                    .andExpect(jsonPath("$.totalEmailsScanned").value(25))
+                    .andExpect(jsonPath("$.totalCandidaciesCreated").value(4))
+                    .andExpect(jsonPath("$.totalCandidaciesUpdated").value(3));
         }
     }
 }

@@ -1,6 +1,8 @@
 package com.candidatae.exception;
 
 import com.candidatae.dto.ApiErrorResponse;
+import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.exc.ValueInstantiationException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -19,7 +21,9 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -121,12 +125,46 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Peticiones con un cuerpo JSON ilegible o ausente.
+     * Peticiones con un cuerpo JSON ilegible, ausente o con valores de Enum inválidos.
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex,
                                                                    HttpServletRequest request) {
+        Throwable cause = ex.getCause();
+
+        if (cause instanceof InvalidFormatException ifx && ifx.getTargetType() != null && ifx.getTargetType().isEnum()) {
+            String fieldName = extractFieldName(ifx.getPath());
+            String valor = ifx.getValue() != null ? ifx.getValue().toString() : "";
+            String message = String.format("Valor '%s' no válido para el campo '%s'. Valores permitidos: %s",
+                    valor, fieldName, Arrays.toString(ifx.getTargetType().getEnumConstants()));
+            return build(HttpStatus.BAD_REQUEST, message, request);
+        }
+
+        if (cause instanceof ValueInstantiationException vie && vie.getType() != null && vie.getType().isEnumType()) {
+            String fieldName = extractFieldName(vie.getPath());
+            String valor = vie.getCause() != null && vie.getCause().getMessage() != null
+                    ? vie.getCause().getMessage()
+                    : "";
+            String message = String.format("Valor '%s' no válido para el campo '%s'. Valores permitidos: %s",
+                    valor, fieldName, Arrays.toString(vie.getType().getRawClass().getEnumConstants()));
+            return build(HttpStatus.BAD_REQUEST, message, request);
+        }
+
         return build(HttpStatus.BAD_REQUEST, "El cuerpo de la petición no es válido", request);
+    }
+
+    private String extractFieldName(List<?> path) {
+        if (path == null || path.isEmpty()) {
+            return "campo";
+        }
+        Object lastRef = path.get(path.size() - 1);
+        String refStr = lastRef.toString();
+        int start = refStr.lastIndexOf("[\"");
+        int end = refStr.lastIndexOf("\"]");
+        if (start != -1 && end != -1 && end > start + 2) {
+            return refStr.substring(start + 2, end);
+        }
+        return "campo";
     }
 
     /**

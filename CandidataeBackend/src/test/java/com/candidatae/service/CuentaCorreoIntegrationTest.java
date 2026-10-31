@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * que <strong>los datos de un usuario son invisibles para los demás</strong>.</p>
  */
 @SpringBootTest(classes = CandidataeApplication.class)
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("CuentaCorreo - integración con PostgreSQL real y aislamiento entre usuarios")
 class CuentaCorreoIntegrationTest {
 

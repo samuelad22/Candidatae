@@ -133,6 +133,12 @@ public final class CuentaCorreoDto {
      * @param authorizationUrl URL de Google a la que debe redirigir el navegador.
      * @param state            valor de protección anti-CSRF (viaja en la propia URL).
      */
+    public record OutlookAuthorize(
+            String authorizationUrl,
+            String state
+    ) {
+    }
+
     public record GmailAuthorize(
             String authorizationUrl,
             String state
