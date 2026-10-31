@@ -20,10 +20,6 @@ import java.util.Locale;
 
 /**
  * Servicio de negocio para operaciones de autenticación: registro y login.
- *
- * <p>La autenticación de Candidatae es <strong>independiente</strong> de la conexión
- * de bandejas de correo: aquí solo se valida quién es el usuario. Vincular un buzón
- * de Gmail es otro proceso (ver {@link com.candidatae.integration.gmail.GmailOAuthService}).</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -49,11 +45,12 @@ public class AuthService {
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .proveedorAuth(ProveedorAuth.LOCAL)
                 .active(true)
+                .termsAccepted(false)
                 .build();
 
         usuarioRepository.save(usuario);
 
-        return new AuthDto.Response(jwtService.generateToken(email), email);
+        return new AuthDto.Response(jwtService.generateToken(email), email, false);
     }
 
     public AuthDto.Response login(AuthDto.Login request) {
@@ -67,10 +64,13 @@ public class AuthService {
             throw ApiException.unauthorized("Credenciales inválidas");
         }
 
+        Usuario usuario = usuarioRepository.findByEmail(email).orElse(null);
+        boolean termsAccepted = usuario != null && usuario.isTermsAccepted();
+
         String token = jwtService.generateToken(email);
         if (eventPublisher != null) {
             eventPublisher.publishEvent(new UserLoggedInEvent(email));
         }
-        return new AuthDto.Response(token, email);
+        return new AuthDto.Response(token, email, termsAccepted);
     }
 }

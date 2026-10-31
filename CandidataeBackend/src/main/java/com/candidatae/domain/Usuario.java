@@ -19,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Locale;
 
@@ -28,15 +29,7 @@ import java.util.Locale;
  * <p>El identificador de sesión del usuario es su <strong>email</strong>: es el
  * "subject" del JWT y es lo que lo identifica aunque acceda con Google o LinkedIn.
  * Esta tabla guarda, además, su contraseña (hasheada), el proveedor con el que se
- * autenticó y su estado.</p>
- *
- * <p><strong>Por qué la tabla se llama {@code users} y no {@code usuario}:</strong>
- * la Fuente de Verdad del proyecto usa el término "usuario" para el concepto, y así se
- * llama la clase. Pero la tabla física se mantiene como {@code users} (decisión del
- * equipo) para no rehacer el esquema ya desplegado en los entornos de desarrollo.
- * La tabla "usuario" no era viable en su momento porque {@code user} es palabra
- * reservada en PostgreSQL; en cualquier caso, la nomenclatura física de las tablas
- * es una decisión de infraestructura y la de las clases es del modelo de dominio.</p>
+ * autenticó, su estado y el registro de consentimiento de Términos y Condiciones (RGPD).</p>
  */
 @Entity
 @Table(name = "users")
@@ -93,6 +86,26 @@ public class Usuario {
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
+
+    /**
+     * Si el usuario ha aceptado los términos y condiciones del servicio (RGPD / LOPDGDD).
+     */
+    @Column(name = "terms_accepted", nullable = false)
+    @Builder.Default
+    private boolean termsAccepted = false;
+
+    /**
+     * Momento en el que se aceptaron los términos y condiciones.
+     */
+    @Column(name = "terms_accepted_at")
+    private Instant termsAcceptedAt;
+
+    /**
+     * Versión del texto legal de términos y condiciones aceptada (ej. "1.0").
+     */
+    @Size(max = 20)
+    @Column(name = "terms_version", length = 20)
+    private String termsVersion;
 
     @PrePersist
     protected void onCreate() {
